@@ -359,12 +359,14 @@ export default function HomePage() {
       <Dialog open={Boolean(education)} onOpenChange={(open) => { if (!open) setEducation(null); }}>
         <DialogContent className="education-dialog">
           {education && <>
-            <div className="education-icon" style={{ backgroundColor: education.color }}><Leaf size={24} /></div>
-            <DialogHeader><p className="eyebrow">{education.kicker}</p><DialogTitle>{education.title}</DialogTitle><DialogDescription>{education.summary}</DialogDescription></DialogHeader>
-            <section className="education-section"><h3>Why it helps</h3><ul>{education.benefits.map((benefit) => <li key={benefit}>{benefit}</li>)}</ul></section>
-            <section className="education-examples"><strong>Easy choices</strong><p>{education.examples}</p></section>
-            <section className="education-action"><strong>Your next move</strong><p>{education.action}</p></section>
-            <Button className="dialog-primary" onClick={() => setEducation(null)}>Got it</Button>
+            <div className="education-scroll">
+              <div className="education-icon" style={{ backgroundColor: education.color }}><Leaf size={24} /></div>
+              <DialogHeader><p className="eyebrow">{education.kicker}</p><DialogTitle>{education.title}</DialogTitle><DialogDescription>{education.summary}</DialogDescription></DialogHeader>
+              <section className="education-section"><h3>Why it helps</h3><ul>{education.benefits.map((benefit) => <li key={benefit}>{benefit}</li>)}</ul></section>
+              <section className="education-examples"><strong>Easy choices</strong><p>{education.examples}</p></section>
+              <section className="education-action"><strong>Your next move</strong><p>{education.action}</p></section>
+            </div>
+            <div className="education-footer"><Button className="dialog-primary" onClick={() => setEducation(null)}>Got it</Button></div>
           </>}
         </DialogContent>
       </Dialog>
