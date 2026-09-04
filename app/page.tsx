@@ -3,13 +3,14 @@
 import {
   ArrowRight, BookOpen, Bot, Check, ChevronRight, CircleUserRound, Droplets,
   Footprints, HeartHandshake, Home, Leaf, MessageCircle, MoonStar, RotateCcw,
-  Send, Sparkles, Sprout, TrendingUp, Utensils, X,
+  Send, ShoppingBasket, Sparkles, Sprout, TrendingUp, Utensils, X,
 } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import { SyntheticEvent, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-type Tab = 'today' | 'coach' | 'learn' | 'progress';
+type Tab = 'today' | 'coach' | 'learn' | 'shop' | 'progress';
 type Rating = 'green' | 'yellow' | 'red';
 type MealResult = { rating: Rating; label: string; headline: string; reason: string; better: string; gbombs: string[] };
 type ChatMessage = { role: 'user' | 'coach'; text: string };
@@ -30,7 +31,62 @@ const gbombs = [
   { letter: 'S', name: 'Seeds & nuts', example: 'chia, flax, walnuts', color: '#ba7a21' },
 ];
 
-const quickPrompts = ['Plan my next meal', 'I don’t feel like walking', 'Give me a smoothie', 'Help me reset'];
+const quickPrompts = ['Plan my next meal', 'Build my grocery list', 'I don’t feel like walking', 'Give me a smoothie', 'Help me reset'];
+
+const groceryGroups = [
+  {
+    name: 'Fresh plants', note: 'Start in the produce section', color: 'produce',
+    items: [
+      ['Baby spinach or kale', 'Greens · 2 large containers'],
+      ['Broccoli or cabbage', 'Greens · 2 heads or bags'],
+      ['Yellow or red onions', 'Onions · 4'],
+      ['Garlic', 'Onions family · 1 bulb'],
+      ['Mushrooms', 'Mushrooms · 2 packages'],
+      ['Fresh or frozen berries', 'Berries · 2 bags or cartons'],
+      ['Bell peppers', 'Colorful vegetables · 3'],
+      ['Zucchini or cauliflower', 'Easy rice-free base · 2'],
+      ['Bananas, apples, or oranges', 'Whole-fruit snacks · 7 pieces'],
+      ['Avocados and lemons', 'Flavor and satisfying fats'],
+    ],
+  },
+  {
+    name: 'Beans & plant protein', note: 'No-salt-added when possible', color: 'beans',
+    items: [
+      ['Black beans', '2 cans'], ['Chickpeas', '2 cans'], ['Lentils', '1 bag or 2 cans'],
+      ['Plain tofu or tempeh', '1 package'], ['Quinoa', 'Rice-free whole-grain option · 1 bag'],
+    ],
+  },
+  {
+    name: 'Seeds, nuts & smoothie basics', note: 'Measure these—small portions add up', color: 'seeds',
+    items: [
+      ['Chia seeds', '1 small bag'], ['Ground flaxseed', '1 small bag'], ['Walnuts or almonds', 'Unsalted · 1 bag'],
+      ['Natural peanut or almond butter', 'No added sugar'], ['Unsweetened cocoa', 'For smoothies'], ['Unsweetened milk or plant milk', '1 carton'],
+    ],
+  },
+  {
+    name: 'Optional animal protein', note: 'Choose lean, minimally processed, and cook safely', color: 'protein',
+    items: [
+      ['USDA Organic chicken breast', '1 package'], ['USDA Organic turkey', 'Lean and unprocessed · 1 package'],
+      ['Wild-caught salmon', 'Fresh or frozen · 2 portions'], ['Eggs', 'USDA Organic if preferred · 1 dozen'],
+    ],
+  },
+  {
+    name: 'Flavor & drinks', note: 'No soda aisle needed', color: 'drinks',
+    items: [
+      ['Still or sparkling water', 'Unsweetened'], ['Herbs and salt-free spices', 'Turmeric, paprika, cumin, pepper'],
+      ['Extra-virgin olive oil', 'Use modestly'], ['Salsa or hummus', 'Check for short ingredient lists'],
+    ],
+  },
+];
+
+const mealIdeas = [
+  ['Mushroom quinoa bowl', 'Quinoa, mushrooms, spinach, onions, chickpeas'],
+  ['Lentil vegetable stew', 'Lentils, tomatoes, kale, onions, herbs'],
+  ['Organic chicken power plate', 'Organic chicken, broccoli, quinoa, avocado'],
+  ['Black bean lettuce wraps', 'Black beans, peppers, onions, salsa, avocado'],
+  ['Berry seed breakfast bowl', 'Oats or quinoa, berries, chia, walnuts'],
+  ['Salmon and greens', 'Wild salmon, cabbage or kale, mushrooms, lemon'],
+];
 
 function localMealCheck(text: string): MealResult {
   const value = text.toLowerCase();
@@ -39,6 +95,10 @@ function localMealCheck(text: string): MealResult {
   const good = goodTerms.filter((term) => value.includes(term));
   const caution = cautionTerms.filter((term) => value.includes(term));
   const found = gbombs.filter((item) => value.includes(item.name.toLowerCase().replace('seeds & nuts', 'seed')) || item.example.split(', ').some((food) => value.includes(food.replace(/s$/, '')))).map((item) => item.name);
+
+  if (/\brice\b/.test(value)) {
+    return { rating: 'red', label: 'Not on this plan', headline: 'Choose the rice-free version.', reason: 'Rice is outside your current six-month personal plan. That is a plan preference—not a claim that rice is harmful.', better: 'Swap it for quinoa, cauliflower, lentils, beans, or extra non-starchy vegetables.', gbombs: found };
+  }
 
   if (caution.length >= 2 || (caution.length && good.length === 0)) {
     return { rating: 'red', label: 'Not recommended', headline: 'Let’s change this meal.', reason: 'It is heavy on ultra-processed food or a sugary drink and light on foods that keep you full.', better: 'Keep the main food simple, add vegetables or beans, and choose water. If this is fast food, order the smaller portion and skip fries and soda.', gbombs: found };
@@ -50,7 +110,7 @@ function localMealCheck(text: string): MealResult {
 }
 
 function AppLogo() {
-  return <img className="app-logo" src="/alex-logo.png" alt="" />;
+  return <Image className="app-logo" src="/alex-logo.png" alt="" width={43} height={43} priority />;
 }
 
 export default function HomePage() {
@@ -68,26 +128,29 @@ export default function HomePage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [walkingStart, setWalkingStart] = useState('15');
+  const [checkedGroceries, setCheckedGroceries] = useState<string[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem('alex-health-plan');
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        setCompleted(data.completed ?? []);
-        setMessages(data.messages?.length ? data.messages : messages);
-        setWalkingStart(data.walkingStart ?? '15');
-      } catch { /* keep safe defaults */ }
-    } else {
-      setShowWelcome(true);
-    }
+    queueMicrotask(() => {
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          setCompleted(data.completed ?? []);
+          setMessages(data.messages?.length ? data.messages : [{ role: 'coach', text: 'Hey Alex — I’m here to make the next choice clear.' }]);
+          setWalkingStart(data.walkingStart ?? '15');
+          setCheckedGroceries(data.checkedGroceries ?? []);
+        } catch { /* keep safe defaults */ }
+      } else {
+        setShowWelcome(true);
+      }
+    });
     navigator.serviceWorker?.register('/sw.js').catch(() => undefined);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('alex-health-plan', JSON.stringify({ completed, messages: messages.slice(-12), walkingStart }));
-  }, [completed, messages, walkingStart]);
+    localStorage.setItem('alex-health-plan', JSON.stringify({ completed, messages: messages.slice(-12), walkingStart, checkedGroceries }));
+  }, [completed, messages, walkingStart, checkedGroceries]);
 
   const progress = Math.round((completed.length / habitList.length) * 100);
   const greeting = useMemo(() => {
@@ -97,8 +160,9 @@ export default function HomePage() {
   const today = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).format(new Date()), []);
 
   const toggleHabit = (id: string) => setCompleted((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const toggleGrocery = (item: string) => setCheckedGroceries((current) => current.includes(item) ? current.filter((entry) => entry !== item) : [...current, item]);
 
-  async function checkMeal(event: FormEvent) {
+  async function checkMeal(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!meal.trim()) return;
     setMealLoading(true);
@@ -108,7 +172,7 @@ export default function HomePage() {
     try {
       const response = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'meal', message: meal }) });
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as { result?: MealResult };
         if (data.result?.rating) setMealResult(data.result);
       }
     } catch { /* offline fallback is already visible */ }
@@ -125,13 +189,13 @@ export default function HomePage() {
     try {
       const response = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'chat', message: clean, history: nextMessages.slice(-6) }) });
       if (!response.ok) throw new Error('Coach offline');
-      const data = await response.json();
-      setMessages((current) => [...current, { role: 'coach', text: data.text }]);
+      const data = await response.json() as { text?: string };
+      setMessages((current) => [...current, { role: 'coach', text: data.text || 'Make your next choice simple and specific.' }]);
     } catch {
       const fallback = clean.toLowerCase().includes('walk')
         ? `Don’t aim for perfect. Put on your shoes and walk for 5 minutes. At 5 minutes, decide whether you can comfortably continue toward ${walkingStart}.`
         : 'Make the next choice simple: drink water, add one whole plant food, and pause before deciding. I’m in offline mode, but your plan still works.';
-      setMessages((current) => [...current, { role: 'coach', text: fallback }]);
+      setMessages([...nextMessages, { role: 'coach', text: fallback }]);
     }
     setChatLoading(false);
   }
@@ -146,7 +210,7 @@ export default function HomePage() {
   function resetData() {
     if (!window.confirm('Erase all saved check-ins and start fresh?')) return;
     localStorage.removeItem('alex-health-plan');
-    setCompleted([]); setMessages([{ role: 'coach', text: 'Fresh start, Alex. What is your next good choice?' }]); setMealResult(null); setMeal('');
+    setCompleted([]); setMessages([{ role: 'coach', text: 'Fresh start, Alex. What is your next good choice?' }]); setMealResult(null); setMeal(''); setCheckedGroceries([]);
   }
 
   return (
@@ -196,6 +260,7 @@ export default function HomePage() {
               </section>
 
               <button className="learn-strip" onClick={() => setTab('learn')}><span className="gbombs-mini">G·B·O·M·B·S</span><span><strong>New here? Start simple.</strong><small>Meet six everyday foods that support your plan.</small></span><ChevronRight size={19} /></button>
+              <button className="shop-strip" onClick={() => setTab('shop')}><span><ShoppingBasket size={20} /></span><span><strong>Shop with a plan</strong><small>A one-week grocery list is ready for you.</small></span><ChevronRight size={19} /></button>
               <p className="safety-note">Wellness guidance only—not medical diagnosis or treatment. Stop exercise and seek care for chest pain, fainting, or severe shortness of breath.</p>
             </>
           )}
@@ -203,12 +268,12 @@ export default function HomePage() {
           {tab === 'coach' && (
             <section className="coach-screen">
               <div className="page-heading"><span className="heading-icon"><Bot size={23} /></span><div><p className="eyebrow">YOUR ACCOUNTABILITY PARTNER</p><h1>Coach Alex</h1><p>Simple answers. Honest recommendations. No judgment.</p></div></div>
-              <div className="quick-prompts">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => sendChat(prompt)}>{prompt}</button>)}</div>
+              <div className="quick-prompts">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => void sendChat(prompt)}>{prompt}</button>)}</div>
               <div className="chat-log" aria-live="polite">
                 {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`message ${message.role}`}><span>{message.role === 'coach' && <AppLogo />}</span><p>{message.text}</p></div>)}
                 {chatLoading && <div className="message coach"><span><AppLogo /></span><p className="typing"><i /><i /><i /></p></div>}
               </div>
-              <form className="chat-compose" onSubmit={(event) => { event.preventDefault(); sendChat(); }}><input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Ask your coach…" aria-label="Message your coach" maxLength={800} /><button disabled={!chatInput.trim() || chatLoading}><Send size={18} /></button></form>
+              <form className="chat-compose" onSubmit={(event) => { event.preventDefault(); void sendChat(); }}><input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Ask your coach…" aria-label="Message your coach" maxLength={800} /><button disabled={!chatInput.trim() || chatLoading}><Send size={18} /></button></form>
             </section>
           )}
 
@@ -219,6 +284,29 @@ export default function HomePage() {
               <div className="gbombs-grid">{gbombs.map((item) => <article key={`${item.letter}-${item.name}`}><span style={{ backgroundColor: item.color }}>{item.letter}</span><div><h3>{item.name}</h3><p>{item.example}</p></div></article>)}</div>
               <section className="lesson-card"><p className="eyebrow">AN EASY FIRST MEAL</p><h2>Build a better bowl</h2><div className="bowl-steps"><span><b>1</b> Greens or vegetables</span><span><b>2</b> Beans or lean protein</span><span><b>3</b> A whole grain or fruit</span><span><b>4</b> Water on the side</span></div><button onClick={() => { setMeal('Brown rice, black beans, spinach, onions and water'); setTab('today'); }}>Check this example <ArrowRight size={16} /></button></section>
               <section className="smoothie-card"><p className="eyebrow">ENERGY SMOOTHIE</p><h2>Chocolate banana seed blend</h2><p>1 small banana · 1 tbsp peanut butter · 1 tbsp chia or ground flax · 1 tsp unsweetened cocoa · milk or unsweetened plant milk · ice</p><small>Treat it as a measured meal or snack—not an unlimited drink. Check allergies and medication interactions before using supplements such as turmeric or maca.</small></section>
+              <section className="sebi-note"><p className="eyebrow">PLANT-FORWARD IDEAS</p><h2>What we keep from “Dr. Sebi-style” eating</h2><p>We use the helpful overlap: more vegetables, beans, fruits, nuts, seeds, quinoa, herbs, and fewer ultra-processed foods. We do not use “alkaline cure,” detox, or disease-treatment claims because those claims are not established medical evidence.</p></section>
+            </section>
+          )}
+
+          {tab === 'shop' && (
+            <section className="shop-screen">
+              <div className="page-heading compact"><span className="heading-icon"><ShoppingBasket size={23} /></span><div><p className="eyebrow">ONE WEEK · ONE PERSON</p><h1>Grocery list</h1></div></div>
+              <section className="shop-intro"><div><span>{checkedGroceries.length}</span><small>items in cart</small></div><p>Shop the edges first: produce, plain proteins, and frozen whole foods. Skip soda and most packaged snack aisles.</p></section>
+              <div className="rice-free-banner"><strong>Six-month rice-free preference</strong><p>This plan suggests quinoa, cauliflower, lentils, beans, or extra vegetables instead. Rice is excluded as your chosen rule—not because all rice is inherently unhealthy.</p></div>
+              <div className="grocery-groups">
+                {groceryGroups.map((group) => (
+                  <section key={group.name} className={`grocery-group ${group.color}`}>
+                    <header><div><h2>{group.name}</h2><p>{group.note}</p></div><span>{group.items.filter(([item]) => checkedGroceries.includes(item)).length}/{group.items.length}</span></header>
+                    <div>{group.items.map(([item, note]) => {
+                      const checked = checkedGroceries.includes(item);
+                      return <button key={item} className={checked ? 'checked' : ''} onClick={() => toggleGrocery(item)}><span className="grocery-check">{checked && <Check size={14} strokeWidth={3} />}</span><span><strong>{item}</strong><small>{note}</small></span></button>;
+                    })}</div>
+                  </section>
+                ))}
+              </div>
+              <section className="meal-ideas"><div className="section-heading"><div><p className="eyebrow">USE WHAT YOU BOUGHT</p><h2>Six easy meal choices</h2></div></div>{mealIdeas.map(([name, ingredients]) => <button key={name} onClick={() => { setMeal(ingredients); setTab('today'); }}><span><strong>{name}</strong><small>{ingredients}</small></span><ChevronRight size={17} /></button>)}</section>
+              <section className="meat-note"><strong>What “organic meat” means here</strong><p>Look for the USDA Organic seal, then still choose lean, minimally processed cuts and sensible portions. Organic describes how the food was produced; it does not automatically make every cut healthier. Always cook meat safely.</p></section>
+              <Button variant="outline" className="clear-list" onClick={() => setCheckedGroceries([])}>Clear checked items</Button>
             </section>
           )}
 
@@ -237,6 +325,7 @@ export default function HomePage() {
           <button className={tab === 'today' ? 'active' : ''} onClick={() => setTab('today')}><Home /><span>Today</span></button>
           <button className={tab === 'coach' ? 'active' : ''} onClick={() => setTab('coach')}><MessageCircle /><span>Coach</span></button>
           <button className={tab === 'learn' ? 'active' : ''} onClick={() => setTab('learn')}><BookOpen /><span>Learn</span></button>
+          <button className={tab === 'shop' ? 'active' : ''} onClick={() => setTab('shop')}><ShoppingBasket /><span>Shop</span></button>
           <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')}><TrendingUp /><span>Progress</span></button>
         </nav>
       </section>
