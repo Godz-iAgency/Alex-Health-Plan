@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     type: 'website',
     title: 'Alex Health Plan',
     description: 'One good choice at a time.',
-    images: [{ url: '/og.png', width: 1536, height: 1024, alt: 'Alex Health Plan — One good choice at a time.' }],
+    images: [{ url: '/og.png', width: 1536, height: 1024, alt: 'Alex Health Plan: One good choice at a time.' }],
   },
   twitter: { card: 'summary_large_image', title: 'Alex Health Plan', description: 'One good choice at a time.', images: ['/og.png'] },
 };

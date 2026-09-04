@@ -14,6 +14,15 @@ type Tab = 'today' | 'coach' | 'learn' | 'shop' | 'progress';
 type Rating = 'green' | 'yellow' | 'red';
 type MealResult = { rating: Rating; label: string; headline: string; reason: string; better: string; gbombs: string[] };
 type ChatMessage = { role: 'user' | 'coach'; text: string };
+type EducationDetail = {
+  title: string;
+  kicker: string;
+  summary: string;
+  benefits: string[];
+  examples: string;
+  action: string;
+  color: string;
+};
 
 const habitList = [
   { id: 'water', icon: Droplets, label: 'Start with water', note: 'One glass before your next meal', tone: 'aqua' },
@@ -23,12 +32,19 @@ const habitList = [
 ];
 
 const gbombs = [
-  { letter: 'G', name: 'Greens', example: 'spinach, kale, broccoli', color: '#2e7d54' },
-  { letter: 'B', name: 'Beans', example: 'black beans, lentils, chickpeas', color: '#9a5c35' },
-  { letter: 'O', name: 'Onions', example: 'onions, garlic, scallions', color: '#a376b7' },
-  { letter: 'M', name: 'Mushrooms', example: 'white, cremini, shiitake', color: '#a87952' },
-  { letter: 'B', name: 'Berries', example: 'blueberries, strawberries', color: '#8d3d6d' },
-  { letter: 'S', name: 'Seeds & nuts', example: 'chia, flax, walnuts', color: '#ba7a21' },
+  { letter: 'G', name: 'Greens', example: 'spinach, kale, broccoli', color: '#2e7d54', kicker: 'GBOMBS: G', summary: 'Greens add fiber, volume, and important vitamins and minerals without making a meal complicated.', benefits: ['Fiber supports digestion and helps meals feel satisfying.', 'Leafy greens can provide folate, vitamin K, vitamin A, and vitamin C.', 'Their volume can help you build a fuller plate with whole foods.'], examplesLong: 'Spinach, kale, collards, cabbage, broccoli, and romaine.', action: 'Add one handful of spinach or one cup of broccoli to your next meal.' },
+  { letter: 'B', name: 'Beans', example: 'black beans, lentils, chickpeas', color: '#9a5c35', kicker: 'GBOMBS: B', summary: 'Beans are a practical plant protein. They also provide fiber, which most animal proteins do not.', benefits: ['Protein helps build and maintain body tissue.', 'Fiber can support digestion and make a meal more filling.', 'Canned no-salt-added beans make a fast, affordable meal.'], examplesLong: 'Black beans, chickpeas, lentils, kidney beans, split peas, and edamame.', action: 'Rinse half a cup of canned beans and add them to a salad, soup, or quinoa bowl.' },
+  { letter: 'O', name: 'Onions', example: 'onions, garlic, scallions', color: '#a376b7', kicker: 'GBOMBS: O', summary: 'The onion family adds strong flavor and useful plant compounds to simple meals.', benefits: ['Onions help whole foods taste satisfying without sugary sauces.', 'They provide small amounts of fiber and vitamin C.', 'Garlic, scallions, and leeks make vegetables, beans, and proteins easier to enjoy.'], examplesLong: 'Yellow onions, red onions, garlic, scallions, shallots, and leeks.', action: 'Cook chopped onion and garlic with mushrooms or beans for an easy flavor base.' },
+  { letter: 'M', name: 'Mushrooms', example: 'white, cremini, shiitake', color: '#a87952', kicker: 'GBOMBS: M', summary: 'Mushrooms bring a savory flavor and useful nutrients to bowls, soups, eggs, and vegetables.', benefits: ['They can provide B vitamins and minerals such as copper and selenium.', 'Their savory taste can make a plant-forward meal feel more satisfying.', 'They are easy to cook with onions, greens, beans, or lean protein.'], examplesLong: 'White button, cremini, portobello, shiitake, and oyster mushrooms.', action: 'Slice a cup of mushrooms and cook them until tender. Never eat unidentified wild mushrooms.' },
+  { letter: 'B', name: 'Berries', example: 'blueberries, strawberries', color: '#8d3d6d', kicker: 'GBOMBS: B', summary: 'Berries provide fiber, vitamin C, and colorful plant compounds in a naturally sweet whole food.', benefits: ['Whole berries keep their fiber, unlike many juices.', 'Fresh and unsweetened frozen berries are both useful choices.', 'They can satisfy a sweet craving without soda or candy.'], examplesLong: 'Blueberries, strawberries, raspberries, and blackberries.', action: 'Add half a cup of berries to oatmeal, plain yogurt, or a measured smoothie.' },
+  { letter: 'S', name: 'Seeds & nuts', example: 'chia, flax, walnuts', color: '#ba7a21', kicker: 'GBOMBS: S', summary: 'Seeds and nuts provide unsaturated fats, plant protein, fiber, and texture. Portions matter because they are energy dense.', benefits: ['Unsaturated fats can fit into a heart-supportive eating pattern.', 'Seeds and nuts add some protein and fiber.', 'Chia and ground flax are simple additions to oatmeal or smoothies.'], examplesLong: 'Chia, ground flax, hemp seeds, walnuts, almonds, and pumpkin seeds.', action: 'Use one tablespoon of seeds or a small handful of unsalted nuts.' },
+];
+
+const bowlSteps: (EducationDetail & { number: string; label: string })[] = [
+  { number: '1', label: 'Greens or vegetables', title: 'Greens and vegetables', kicker: 'BETTER BOWL: STEP 1', color: '#2e7d54', summary: 'Start with vegetables to add color, fiber, nutrients, and satisfying volume.', benefits: ['Vegetables can provide fiber, potassium, folate, vitamin A, and vitamin C.', 'A larger vegetable portion helps the bowl feel substantial.', 'Fresh, frozen, steamed, roasted, or lightly sautéed options all work.'], examples: 'Spinach, kale, broccoli, cabbage, peppers, zucchini, or cauliflower.', action: 'Fill about half of the bowl with vegetables you already enjoy.' },
+  { number: '2', label: 'Beans or lean protein', title: 'Beans or lean protein', kicker: 'BETTER BOWL: STEP 2', color: '#9a5c35', summary: 'Add a protein choice for a more satisfying meal. Beans provide both plant protein and fiber.', benefits: ['Beans, lentils, tofu, and tempeh are useful plant proteins.', 'Lean poultry, fish, or eggs can be optional minimally processed choices.', 'Protein supports body tissue and helps make a meal feel complete.'], examples: 'Black beans, chickpeas, lentils, tofu, tempeh, chicken breast, turkey, fish, or eggs.', action: 'Choose one protein. Start with about half a cup of beans or a palm-sized portion of lean protein.' },
+  { number: '3', label: 'A whole grain or fruit', title: 'Whole grain or fruit', kicker: 'BETTER BOWL: STEP 3', color: '#8d6f24', summary: 'Add a sensible energy source that brings useful nutrients and fits the rice-free plan.', benefits: ['Whole grains can provide fiber and steady meal energy.', 'Whole fruit adds fiber and natural sweetness.', 'Quinoa also contributes some protein and works well as a bowl base.'], examples: 'Quinoa, oats, amaranth, buckwheat, berries, apples, or oranges.', action: 'Choose a small serving of quinoa or one piece of whole fruit. Skip rice for this personal six-month plan.' },
+  { number: '4', label: 'Water on the side', title: 'Water on the side', kicker: 'BETTER BOWL: STEP 4', color: '#287d78', summary: 'Water supports normal body function and replaces sugary drinks without adding calories.', benefits: ['Water helps prevent dehydration.', 'Choosing water instead of soda reduces added sugar and drink calories.', 'Plain sparkling water also works when you want bubbles.'], examples: 'Still water, sparkling water, or water with lemon, lime, cucumber, or berries.', action: 'Pour the water before you begin eating and keep soda out of the meal.' },
 ];
 
 const quickPrompts = ['Plan my next meal', 'Build my grocery list', 'I don’t feel like walking', 'Give me a smoothie', 'Help me reset'];
@@ -57,7 +73,7 @@ const groceryGroups = [
     ],
   },
   {
-    name: 'Seeds, nuts & smoothie basics', note: 'Measure these—small portions add up', color: 'seeds',
+    name: 'Seeds, nuts & smoothie basics', note: 'Measure these. Small portions add up', color: 'seeds',
     items: [
       ['Chia seeds', '1 small bag'], ['Ground flaxseed', '1 small bag'], ['Walnuts or almonds', 'Unsalted · 1 bag'],
       ['Natural peanut or almond butter', 'No added sugar'], ['Unsweetened cocoa', 'For smoothies'], ['Unsweetened milk or plant milk', '1 carton'],
@@ -97,7 +113,7 @@ function localMealCheck(text: string): MealResult {
   const found = gbombs.filter((item) => value.includes(item.name.toLowerCase().replace('seeds & nuts', 'seed')) || item.example.split(', ').some((food) => value.includes(food.replace(/s$/, '')))).map((item) => item.name);
 
   if (/\brice\b/.test(value)) {
-    return { rating: 'red', label: 'Not on this plan', headline: 'Choose the rice-free version.', reason: 'Rice is outside your current six-month personal plan. That is a plan preference—not a claim that rice is harmful.', better: 'Swap it for quinoa, cauliflower, lentils, beans, or extra non-starchy vegetables.', gbombs: found };
+    return { rating: 'red', label: 'Not on this plan', headline: 'Choose the rice-free version.', reason: 'Rice is outside your current six-month personal plan. That is a plan preference. It is not a claim that rice is harmful.', better: 'Swap it for quinoa, cauliflower, lentils, beans, or extra non-starchy vegetables.', gbombs: found };
   }
 
   if (caution.length >= 2 || (caution.length && good.length === 0)) {
@@ -106,7 +122,7 @@ function localMealCheck(text: string): MealResult {
   if (good.length >= 2 && caution.length === 0) {
     return { rating: 'green', label: 'Good choice', headline: 'This supports your plan.', reason: 'You included whole foods that can provide fiber, nourishment, or satisfying protein.', better: 'Eat slowly, stop when comfortably satisfied, and log it as a win.', gbombs: found };
   }
-  return { rating: 'yellow', label: 'Improve it', headline: 'Close — make one upgrade.', reason: 'This meal may work, but it needs more plants, fiber, or a better drink choice.', better: 'Add a green vegetable, beans, berries, or a small handful of nuts or seeds. Choose water.', gbombs: found };
+  return { rating: 'yellow', label: 'Improve it', headline: 'Close. Make one upgrade.', reason: 'This meal may work, but it needs more plants, fiber, or a better drink choice.', better: 'Add a green vegetable, beans, berries, or a small handful of nuts or seeds. Choose water.', gbombs: found };
 }
 
 function AppLogo() {
@@ -121,7 +137,7 @@ export default function HomePage() {
   const [mealLoading, setMealLoading] = useState(false);
   const [mealChoice, setMealChoice] = useState<'recommended' | 'original' | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'coach', text: 'Hey Alex — I’m here to make the next choice clear. Tell me what you’re eating, how you’re feeling, or where you feel stuck.' },
+    { role: 'coach', text: 'Hey Alex. I’m here to make the next choice clear. Tell me what you’re eating, how you’re feeling, or where you feel stuck.' },
   ]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -129,6 +145,7 @@ export default function HomePage() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [walkingStart, setWalkingStart] = useState('15');
   const [checkedGroceries, setCheckedGroceries] = useState<string[]>([]);
+  const [education, setEducation] = useState<EducationDetail | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('alex-health-plan');
@@ -137,7 +154,7 @@ export default function HomePage() {
         try {
           const data = JSON.parse(saved);
           setCompleted(data.completed ?? []);
-          setMessages(data.messages?.length ? data.messages : [{ role: 'coach', text: 'Hey Alex — I’m here to make the next choice clear.' }]);
+          setMessages(data.messages?.length ? data.messages : [{ role: 'coach', text: 'Hey Alex. I’m here to make the next choice clear.' }]);
           setWalkingStart(data.walkingStart ?? '15');
           setCheckedGroceries(data.checkedGroceries ?? []);
         } catch { /* keep safe defaults */ }
@@ -241,7 +258,7 @@ export default function HomePage() {
                   <h3>{mealResult.headline}</h3><p>{mealResult.reason}</p>
                   <div className="coach-move"><span>YOUR BEST MOVE</span><p>{mealResult.better}</p></div>
                   <div className="gbomb-found"><Leaf size={15} /><span>{mealResult.gbombs.length ? `GBOMBS found: ${mealResult.gbombs.join(', ')}` : 'No GBOMBS foods found yet'}</span></div>
-                  <p className="accountability-copy">Be honest—what are you choosing?</p>
+                  <p className="accountability-copy">Be honest. What are you choosing?</p>
                   <div className="choice-buttons">
                     <button className={mealChoice === 'recommended' ? 'selected' : ''} onClick={() => setMealChoice('recommended')} type="button"><Check size={15} /> Recommended version</button>
                     <button className={mealChoice === 'original' ? 'selected' : ''} onClick={() => setMealChoice('original')} type="button">Original meal</button>
@@ -261,7 +278,7 @@ export default function HomePage() {
 
               <button className="learn-strip" onClick={() => setTab('learn')}><span className="gbombs-mini">G·B·O·M·B·S</span><span><strong>New here? Start simple.</strong><small>Meet six everyday foods that support your plan.</small></span><ChevronRight size={19} /></button>
               <button className="shop-strip" onClick={() => setTab('shop')}><span><ShoppingBasket size={20} /></span><span><strong>Shop with a plan</strong><small>A one-week grocery list is ready for you.</small></span><ChevronRight size={19} /></button>
-              <p className="safety-note">Wellness guidance only—not medical diagnosis or treatment. Stop exercise and seek care for chest pain, fainting, or severe shortness of breath.</p>
+              <p className="safety-note">Wellness guidance only, not medical diagnosis or treatment. Stop exercise and seek care for chest pain, fainting, or severe shortness of breath.</p>
             </>
           )}
 
@@ -281,9 +298,9 @@ export default function HomePage() {
             <section className="learn-screen">
               <div className="page-heading compact"><span className="heading-icon"><Sprout size={23} /></span><div><p className="eyebrow">FOOD, MADE SIMPLE</p><h1>Meet GBOMBS</h1></div></div>
               <div className="explain-card"><strong>It’s just a memory trick.</strong><p>GBOMBS stands for six groups of plant foods. You do not need all six at every meal. Start by adding one.</p><div className="simple-rule"><span>Today’s rule</span><b>Add one colorful plant to your next meal.</b></div></div>
-              <div className="gbombs-grid">{gbombs.map((item) => <article key={`${item.letter}-${item.name}`}><span style={{ backgroundColor: item.color }}>{item.letter}</span><div><h3>{item.name}</h3><p>{item.example}</p></div></article>)}</div>
-              <section className="lesson-card"><p className="eyebrow">AN EASY FIRST MEAL</p><h2>Build a better bowl</h2><div className="bowl-steps"><span><b>1</b> Greens or vegetables</span><span><b>2</b> Beans or lean protein</span><span><b>3</b> A whole grain or fruit</span><span><b>4</b> Water on the side</span></div><button onClick={() => { setMeal('Brown rice, black beans, spinach, onions and water'); setTab('today'); }}>Check this example <ArrowRight size={16} /></button></section>
-              <section className="smoothie-card"><p className="eyebrow">ENERGY SMOOTHIE</p><h2>Chocolate banana seed blend</h2><p>1 small banana · 1 tbsp peanut butter · 1 tbsp chia or ground flax · 1 tsp unsweetened cocoa · milk or unsweetened plant milk · ice</p><small>Treat it as a measured meal or snack—not an unlimited drink. Check allergies and medication interactions before using supplements such as turmeric or maca.</small></section>
+              <div className="gbombs-grid">{gbombs.map((item) => <button key={`${item.letter}-${item.name}`} onClick={() => setEducation({ title: item.name, kicker: item.kicker, summary: item.summary, benefits: item.benefits, examples: item.examplesLong, action: item.action, color: item.color })} aria-label={`Learn about ${item.name}`}><span style={{ backgroundColor: item.color }}>{item.letter}</span><span><strong>{item.name}</strong><small>{item.example}</small></span><ChevronRight size={17} /></button>)}</div>
+              <section className="lesson-card"><p className="eyebrow">AN EASY FIRST MEAL</p><h2>Build a better bowl</h2><div className="bowl-steps">{bowlSteps.map((step) => <button key={step.number} onClick={() => setEducation(step)} aria-label={`Learn about ${step.label}`}><b>{step.number}</b><span>{step.label}</span><ChevronRight size={15} /></button>)}</div><button onClick={() => { setMeal('Quinoa, black beans, spinach, onions, mushrooms and water'); setTab('today'); }}>Check this example <ArrowRight size={16} /></button></section>
+              <section className="smoothie-card"><p className="eyebrow">ENERGY SMOOTHIE</p><h2>Chocolate banana seed blend</h2><p>1 small banana · 1 tbsp peanut butter · 1 tbsp chia or ground flax · 1 tsp unsweetened cocoa · milk or unsweetened plant milk · ice</p><small>Treat it as a measured meal or snack, not an unlimited drink. Check allergies and medication interactions before using supplements such as turmeric or maca.</small></section>
               <section className="sebi-note"><p className="eyebrow">PLANT-FORWARD IDEAS</p><h2>What we keep from “Dr. Sebi-style” eating</h2><p>We use the helpful overlap: more vegetables, beans, fruits, nuts, seeds, quinoa, herbs, and fewer ultra-processed foods. We do not use “alkaline cure,” detox, or disease-treatment claims because those claims are not established medical evidence.</p></section>
             </section>
           )}
@@ -292,7 +309,7 @@ export default function HomePage() {
             <section className="shop-screen">
               <div className="page-heading compact"><span className="heading-icon"><ShoppingBasket size={23} /></span><div><p className="eyebrow">ONE WEEK · ONE PERSON</p><h1>Grocery list</h1></div></div>
               <section className="shop-intro"><div><span>{checkedGroceries.length}</span><small>items in cart</small></div><p>Shop the edges first: produce, plain proteins, and frozen whole foods. Skip soda and most packaged snack aisles.</p></section>
-              <div className="rice-free-banner"><strong>Six-month rice-free preference</strong><p>This plan suggests quinoa, cauliflower, lentils, beans, or extra vegetables instead. Rice is excluded as your chosen rule—not because all rice is inherently unhealthy.</p></div>
+              <div className="rice-free-banner"><strong>Six-month rice-free preference</strong><p>This plan suggests quinoa, cauliflower, lentils, beans, or extra vegetables instead. Rice is excluded as your chosen rule. This does not mean all rice is inherently unhealthy.</p></div>
               <div className="grocery-groups">
                 {groceryGroups.map((group) => (
                   <section key={group.name} className={`grocery-group ${group.color}`}>
@@ -315,7 +332,7 @@ export default function HomePage() {
               <div className="page-heading compact"><span className="heading-icon"><TrendingUp size={23} /></span><div><p className="eyebrow">PROGRESS, NOT PERFECTION</p><h1>Your week</h1></div></div>
               <section className="week-card"><div><span className="big-number">{progress}%</span><small>of today’s promises kept</small></div><div className="week-bars" aria-label="Seven day progress"><i style={{height:'35%'}}/><i style={{height:'52%'}}/><i style={{height:'46%'}}/><i style={{height:'70%'}}/><i style={{height:'58%'}}/><i style={{height:'82%'}}/><i className="current" style={{height:`${Math.max(progress,8)}%`}}/></div><div className="day-labels"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>T</span></div></section>
               <div className="stat-grid"><article><span className="stat-icon lime"><Footprints /></span><strong>65</strong><small>walking minutes</small></article><article><span className="stat-icon gold"><Sparkles /></span><strong>3</strong><small>day streak</small></article></div>
-              <section className="reflection-card"><p className="eyebrow">YOUR WEEKLY TRUTH</p><h2>You’re showing up.</h2><p>You completed more movement than last week. Your next focus is checking meals before—not after—you eat.</p></section>
+              <section className="reflection-card"><p className="eyebrow">YOUR WEEKLY TRUTH</p><h2>You’re showing up.</h2><p>You completed more movement than last week. Your next focus is checking meals before you eat, not after.</p></section>
               <section className="data-controls"><h2>Your data stays on this device</h2><p>No account is required. You can save a copy or erase everything at any time.</p><div><Button variant="outline" onClick={exportData}>Export my data</Button><Button variant="destructive" onClick={resetData}><RotateCcw /> Reset</Button></div></section>
             </section>
           )}
@@ -335,7 +352,20 @@ export default function HomePage() {
           <div className="welcome-logo"><AppLogo /></div><DialogHeader><DialogTitle>Welcome, Alex.</DialogTitle><DialogDescription>This plan starts small on purpose. What feels like a comfortable first walk?</DialogDescription></DialogHeader>
           <div className="walk-options">{['10','15','20'].map((minutes) => <button key={minutes} className={walkingStart === minutes ? 'selected' : ''} onClick={() => setWalkingStart(minutes)}><strong>{minutes}</strong><span>minutes</span></button>)}</div>
           <p className="dialog-safety">If you have chest pain, dizziness, severe breathlessness, uncontrolled blood pressure, diabetes complications, or significant joint pain, ask a healthcare professional before changing activity.</p>
-          <Button className="dialog-primary" size="lg" onClick={() => setShowWelcome(false)}>Start my simple plan <ArrowRight /></Button>
+          <Button className="dialog-primary" size="lg" onClick={() => setShowWelcome(false)}>Create my simple plan <ArrowRight /></Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(education)} onOpenChange={(open) => { if (!open) setEducation(null); }}>
+        <DialogContent className="education-dialog">
+          {education && <>
+            <div className="education-icon" style={{ backgroundColor: education.color }}><Leaf size={24} /></div>
+            <DialogHeader><p className="eyebrow">{education.kicker}</p><DialogTitle>{education.title}</DialogTitle><DialogDescription>{education.summary}</DialogDescription></DialogHeader>
+            <section className="education-section"><h3>Why it helps</h3><ul>{education.benefits.map((benefit) => <li key={benefit}>{benefit}</li>)}</ul></section>
+            <section className="education-examples"><strong>Easy choices</strong><p>{education.examples}</p></section>
+            <section className="education-action"><strong>Your next move</strong><p>{education.action}</p></section>
+            <Button className="dialog-primary" onClick={() => setEducation(null)}>Got it</Button>
+          </>}
         </DialogContent>
       </Dialog>
 
