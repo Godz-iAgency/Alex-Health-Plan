@@ -6,7 +6,7 @@ VOICE AND ACCOUNTABILITY
 Be warm, firm, practical, and kind. Speak to Alex, not about him. Answer his question right away. Do not introduce yourself unless he asks who you are. Never shame body size, lecture, or call a person bad. Be honest when a meal does not support the plan. Then give a simple food swap.
 
 WRITING RULES
-Write at a third-grade to fifth-grade reading level. Use common words and short sentences. Keep most sentences under 16 words. Use no more than three short paragraphs and 90 words unless Alex asks for more detail. End with one clear next step or one simple question.
+Write at a third-grade to fifth-grade reading level. Use common words and short sentences. Keep most sentences under 16 words. Most answers should use 20 to 35 words. Every answer must stay at or below 50 words. Only use close to 50 words when Alex asks a question that needs more detail. End with one clear next step or one simple question.
 Return natural language only. Never use Markdown. Never use headings, bullet points, numbered lists, asterisks, hashtags, backticks, tables, or bold text. Use normal sentences with periods, commas, and question marks. Never use an em dash or en dash. Do not place a label before every sentence.
 
 THE THREE FOUNDATIONS
@@ -61,11 +61,26 @@ function extractJson(text: string) {
   const start = clean.indexOf('{');
   const end = clean.lastIndexOf('}');
   if (start < 0 || end < start) throw new Error('No JSON result');
-  return sanitizeValue(JSON.parse(clean.slice(start, end + 1)));
+  const result = JSON.parse(clean.slice(start, end + 1)) as Record<string, unknown>;
+  return {
+    ...result,
+    label: limitWords(sanitizeCopy(typeof result.label === 'string' ? result.label : ''), 4),
+    headline: limitWords(sanitizeCopy(typeof result.headline === 'string' ? result.headline : ''), 8),
+    reason: limitWords(sanitizeCopy(typeof result.reason === 'string' ? result.reason : ''), 18),
+    better: limitWords(sanitizeCopy(typeof result.better === 'string' ? result.better : ''), 20),
+    gbombs: Array.isArray(result.gbombs) ? result.gbombs.filter((item): item is string => typeof item === 'string').map((item) => sanitizeCopy(item)) : [],
+  };
 }
 
-function sanitizeCopy(text: string) {
-  return text
+function limitWords(text: string, maximum = 50) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maximum) return text.trim();
+  const shortened = words.slice(0, maximum).join(' ').replace(/[,;:]$/, '');
+  return /[.!?]$/.test(shortened) ? shortened : `${shortened}.`;
+}
+
+function sanitizeCopy(text: string, maximum = 50) {
+  const clean = text
     .replace(/```(?:\w+)?/g, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/^\s{0,3}#{1,6}\s+/gm, '')
@@ -80,13 +95,7 @@ function sanitizeCopy(text: string) {
     .replace(/([.!?])(?=[A-Za-z])/g, '$1 ')
     .replace(/\s{2,}/g, ' ')
     .trim();
-}
-
-function sanitizeValue(value: unknown): unknown {
-  if (typeof value === 'string') return sanitizeCopy(value);
-  if (Array.isArray(value)) return value.map(sanitizeValue);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeValue(item)]));
-  return value;
+  return limitWords(clean, maximum);
 }
 
 export async function POST(request: Request) {
@@ -103,13 +112,13 @@ export async function POST(request: Request) {
     const mode = body.mode === 'meal' ? 'meal' : 'chat';
     const task = mode === 'meal'
       ? `Assess this planned meal: "${message}". Return ONLY valid JSON with this exact shape: {"rating":"green|yellow|red","label":"Good choice|Improve it|Not recommended","headline":"short direct headline","reason":"one short sentence at a third-grade to fifth-grade reading level","better":"one short and specific next step","gbombs":["only GBOMBS groups actually present"]}. Green means the meal supports the plan. Yellow means it needs one change. Red means it is not recommended. Be honest and kind. Do not use Markdown or list formatting in any value.`
-      : `${(body.history ?? []).slice(-6).map((item) => `${item.role}: ${sanitizeCopy(String(item.text).slice(0, 500))}`).join('\n')}\nAlex: ${message}\nAnswer in natural language at a third-grade to fifth-grade reading level. Use no more than 90 words. Do not use Markdown, lists, headings, asterisks, or dash punctuation. Give one clear next step.`;
+      : `${(body.history ?? []).slice(-6).map((item) => `${item.role}: ${sanitizeCopy(String(item.text).slice(0, 500))}`).join('\n')}\nAlex: ${message}\nAnswer in natural language at a third-grade to fifth-grade reading level. Use 20 to 35 words when possible. Never use more than 50 words. Only use close to 50 words when the question needs more detail. Do not use Markdown, lists, headings, asterisks, or dash punctuation. Give one clear next step.`;
 
     const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({ system_instruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents: [{ role: 'user', parts: [{ text: task }] }], generationConfig: { temperature: mode === 'meal' ? 0.2 : 0.55, maxOutputTokens: 500, responseMimeType: mode === 'meal' ? 'application/json' : 'text/plain' } }),
+      body: JSON.stringify({ system_instruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents: [{ role: 'user', parts: [{ text: task }] }], generationConfig: { temperature: mode === 'meal' ? 0.2 : 0.55, maxOutputTokens: mode === 'meal' ? 300 : 140, responseMimeType: mode === 'meal' ? 'application/json' : 'text/plain' } }),
     });
     if (!response.ok) throw new Error(`Gemini returned ${response.status}`);
     const data = await response.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };

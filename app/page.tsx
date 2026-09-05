@@ -125,8 +125,8 @@ function localMealCheck(text: string): MealResult {
   return { rating: 'yellow', label: 'Improve it', headline: 'Close. Make one upgrade.', reason: 'This meal may work, but it needs more plants, fiber, or a better drink choice.', better: 'Add a green vegetable, beans, berries, or a small handful of nuts or seeds. Choose water.', gbombs: found };
 }
 
-function cleanNaturalText(text: string) {
-  return text
+function cleanNaturalText(text: string, maximum = 50) {
+  const clean = text
     .replace(/```(?:\w+)?/g, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/^\s{0,3}#{1,6}\s+/gm, '')
@@ -141,15 +141,19 @@ function cleanNaturalText(text: string) {
     .replace(/([.!?])(?=[A-Za-z])/g, '$1 ')
     .replace(/\s{2,}/g, ' ')
     .trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length <= maximum) return clean;
+  const shortened = words.slice(0, maximum).join(' ').replace(/[,;:]$/, '');
+  return /[.!?]$/.test(shortened) ? shortened : `${shortened}.`;
 }
 
 function cleanMealResult(result: MealResult): MealResult {
   return {
     ...result,
-    label: cleanNaturalText(result.label),
-    headline: cleanNaturalText(result.headline),
-    reason: cleanNaturalText(result.reason),
-    better: cleanNaturalText(result.better),
+    label: cleanNaturalText(result.label, 4),
+    headline: cleanNaturalText(result.headline, 8),
+    reason: cleanNaturalText(result.reason, 18),
+    better: cleanNaturalText(result.better, 20),
     gbombs: result.gbombs.map(cleanNaturalText),
   };
 }
