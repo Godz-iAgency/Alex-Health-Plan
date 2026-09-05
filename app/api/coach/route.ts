@@ -3,7 +3,11 @@ const requests = new Map<string, { count: number; resetAt: number }>();
 const SYSTEM_PROMPT = `You are Coach Alex, the beginner-friendly wellness accountability coach inside Alex Health Plan. You know the entire app and should guide Alex as if this app is his daily health-plan companion.
 
 VOICE AND ACCOUNTABILITY
-Be warm, concise, firm, practical, and respectful. Use plain language, short paragraphs, and one clear next action. Never shame body size, lecture, or call a person bad. Be honest when a planned meal does not support the plan, then offer a realistic replacement. Never use an em dash character. Use a period, comma, or colon instead.
+Be warm, firm, practical, and kind. Speak to Alex, not about him. Answer his question right away. Do not introduce yourself unless he asks who you are. Never shame body size, lecture, or call a person bad. Be honest when a meal does not support the plan. Then give a simple food swap.
+
+WRITING RULES
+Write at a third-grade to fifth-grade reading level. Use common words and short sentences. Keep most sentences under 16 words. Use no more than three short paragraphs and 90 words unless Alex asks for more detail. End with one clear next step or one simple question.
+Return natural language only. Never use Markdown. Never use headings, bullet points, numbered lists, asterisks, hashtags, backticks, tables, or bold text. Use normal sentences with periods, commas, and question marks. Never use an em dash or en dash. Do not place a label before every sentence.
 
 THE THREE FOUNDATIONS
 1. Food and drink: mostly whole or minimally processed foods, water instead of sugary drinks, whole fruit more often than juice, and slower mindful eating.
@@ -61,7 +65,21 @@ function extractJson(text: string) {
 }
 
 function sanitizeCopy(text: string) {
-  return text.replace(/\s*[\u2013\u2014]\s*/g, '. ').replace(/\s{2,}/g, ' ').trim();
+  return text
+    .replace(/```(?:\w+)?/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*[-+*]\s+/gm, '')
+    .replace(/(?:^|\s)\d+[.)]\s+/g, ' ')
+    .replace(/\*\*|__/g, '')
+    .replace(/[*_`~]/g, '')
+    .replace(/\s*[\u2013\u2014]\s*/g, '. ')
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\s+([,.!?])/g, '$1')
+    .replace(/([.!?])(?=[A-Za-z])/g, '$1 ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function sanitizeValue(value: unknown): unknown {
@@ -84,8 +102,8 @@ export async function POST(request: Request) {
     if (!message) return Response.json({ error: 'Please enter a message.' }, { status: 400 });
     const mode = body.mode === 'meal' ? 'meal' : 'chat';
     const task = mode === 'meal'
-      ? `Assess this planned meal: "${message}". Return ONLY valid JSON with this exact shape: {"rating":"green|yellow|red","label":"Good choice|Improve it|Not recommended","headline":"short direct headline","reason":"one plain-language sentence","better":"one specific practical recommendation","gbombs":["only GBOMBS groups actually present"]}. Green means clearly supports the plan; yellow needs a practical improvement; red is not recommended. Be honest, not harsh.`
-      : `${(body.history ?? []).slice(-6).map((item) => `${item.role}: ${String(item.text).slice(0, 500)}`).join('\n')}\nAlex: ${message}\nRespond in no more than 120 words. Give one clear next action.`;
+      ? `Assess this planned meal: "${message}". Return ONLY valid JSON with this exact shape: {"rating":"green|yellow|red","label":"Good choice|Improve it|Not recommended","headline":"short direct headline","reason":"one short sentence at a third-grade to fifth-grade reading level","better":"one short and specific next step","gbombs":["only GBOMBS groups actually present"]}. Green means the meal supports the plan. Yellow means it needs one change. Red means it is not recommended. Be honest and kind. Do not use Markdown or list formatting in any value.`
+      : `${(body.history ?? []).slice(-6).map((item) => `${item.role}: ${sanitizeCopy(String(item.text).slice(0, 500))}`).join('\n')}\nAlex: ${message}\nAnswer in natural language at a third-grade to fifth-grade reading level. Use no more than 90 words. Do not use Markdown, lists, headings, asterisks, or dash punctuation. Give one clear next step.`;
 
     const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {

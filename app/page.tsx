@@ -125,6 +125,35 @@ function localMealCheck(text: string): MealResult {
   return { rating: 'yellow', label: 'Improve it', headline: 'Close. Make one upgrade.', reason: 'This meal may work, but it needs more plants, fiber, or a better drink choice.', better: 'Add a green vegetable, beans, berries, or a small handful of nuts or seeds. Choose water.', gbombs: found };
 }
 
+function cleanNaturalText(text: string) {
+  return text
+    .replace(/```(?:\w+)?/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*>\s?/gm, '')
+    .replace(/^\s*[-+*]\s+/gm, '')
+    .replace(/(?:^|\s)\d+[.)]\s+/g, ' ')
+    .replace(/\*\*|__/g, '')
+    .replace(/[*_`~]/g, '')
+    .replace(/\s*[\u2013\u2014]\s*/g, '. ')
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/\s+([,.!?])/g, '$1')
+    .replace(/([.!?])(?=[A-Za-z])/g, '$1 ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function cleanMealResult(result: MealResult): MealResult {
+  return {
+    ...result,
+    label: cleanNaturalText(result.label),
+    headline: cleanNaturalText(result.headline),
+    reason: cleanNaturalText(result.reason),
+    better: cleanNaturalText(result.better),
+    gbombs: result.gbombs.map(cleanNaturalText),
+  };
+}
+
 function AppLogo() {
   return <Image className="app-logo" src="/alex-logo.png" alt="" width={43} height={43} priority />;
 }
@@ -154,7 +183,10 @@ export default function HomePage() {
         try {
           const data = JSON.parse(saved);
           setCompleted(data.completed ?? []);
-          setMessages(data.messages?.length ? data.messages : [{ role: 'coach', text: 'Hey Alex. I’m here to make the next choice clear.' }]);
+          const savedMessages = Array.isArray(data.messages)
+            ? data.messages.map((item: ChatMessage) => ({ ...item, text: cleanNaturalText(String(item.text ?? '')) })).filter((item: ChatMessage) => item.text)
+            : [];
+          setMessages(savedMessages.length ? savedMessages : [{ role: 'coach', text: 'Hey Alex. I’m here to make the next choice clear.' }]);
           setWalkingStart(data.walkingStart ?? '15');
           setCheckedGroceries(data.checkedGroceries ?? []);
         } catch { /* keep safe defaults */ }
@@ -190,7 +222,7 @@ export default function HomePage() {
       const response = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'meal', message: meal }) });
       if (response.ok) {
         const data = await response.json() as { result?: MealResult };
-        if (data.result?.rating) setMealResult(data.result);
+        if (data.result?.rating) setMealResult(cleanMealResult(data.result));
       }
     } catch { /* offline fallback is already visible */ }
     setMealLoading(false);
@@ -207,11 +239,11 @@ export default function HomePage() {
       const response = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'chat', message: clean, history: nextMessages.slice(-6) }) });
       if (!response.ok) throw new Error('Coach offline');
       const data = await response.json() as { text?: string };
-      setMessages((current) => [...current, { role: 'coach', text: data.text || 'Make your next choice simple and specific.' }]);
+      setMessages((current) => [...current, { role: 'coach', text: cleanNaturalText(data.text || 'Make your next choice simple and clear.') }]);
     } catch {
       const fallback = clean.toLowerCase().includes('walk')
-        ? `Don’t aim for perfect. Put on your shoes and walk for 5 minutes. At 5 minutes, decide whether you can comfortably continue toward ${walkingStart}.`
-        : 'Make the next choice simple: drink water, add one whole plant food, and pause before deciding. I’m in offline mode, but your plan still works.';
+        ? `You do not need to be perfect. Put on your shoes and walk for 5 minutes. Then ask yourself if you can keep going toward ${walkingStart} minutes.`
+        : 'Make one simple choice. Drink water and add one plant food. Your plan still works while the coach is offline.';
       setMessages([...nextMessages, { role: 'coach', text: fallback }]);
     }
     setChatLoading(false);
@@ -287,7 +319,7 @@ export default function HomePage() {
               <div className="page-heading"><span className="heading-icon"><Bot size={23} /></span><div><p className="eyebrow">YOUR ACCOUNTABILITY PARTNER</p><h1>Coach Alex</h1><p>Simple answers. Honest recommendations. No judgment.</p></div></div>
               <div className="quick-prompts">{quickPrompts.map((prompt) => <button key={prompt} onClick={() => void sendChat(prompt)}>{prompt}</button>)}</div>
               <div className="chat-log" aria-live="polite">
-                {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`message ${message.role}`}><span>{message.role === 'coach' && <AppLogo />}</span><p>{message.text}</p></div>)}
+                {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`message ${message.role}`}><span>{message.role === 'coach' && <AppLogo />}</span><p>{message.role === 'coach' ? cleanNaturalText(message.text) : message.text}</p></div>)}
                 {chatLoading && <div className="message coach"><span><AppLogo /></span><p className="typing"><i /><i /><i /></p></div>}
               </div>
               <form className="chat-compose" onSubmit={(event) => { event.preventDefault(); void sendChat(); }}><input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Ask your coach…" aria-label="Message your coach" maxLength={800} /><button disabled={!chatInput.trim() || chatLoading}><Send size={18} /></button></form>
