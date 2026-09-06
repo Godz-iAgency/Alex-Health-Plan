@@ -1,16 +1,17 @@
 'use client';
 
 import {
-  ArrowRight, BookOpen, Bot, Check, ChevronRight, CircleUserRound, Droplets,
-  Footprints, HeartHandshake, Home, Leaf, MessageCircle, MoonStar, RotateCcw,
-  Send, ShoppingBasket, Sparkles, Sprout, TrendingUp, Utensils, X,
+  ArrowRight, Bot, Check, ChevronRight, CircleUserRound, Droplets,
+  Footprints, HeartHandshake, Home, Leaf, MessageCircle, MoonStar,
+  Send, Sprout, TrendingUp, Utensils, X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { SyntheticEvent, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-type Tab = 'today' | 'coach' | 'learn' | 'shop' | 'progress';
+type Tab = 'today' | 'coach' | 'plan' | 'progress';
+type PlanSection = 'food' | 'groceries';
 type Rating = 'green' | 'yellow' | 'red';
 type MealResult = { rating: Rating; label: string; headline: string; reason: string; better: string; gbombs: string[] };
 type ChatMessage = { role: 'user' | 'coach'; text: string };
@@ -47,7 +48,7 @@ const bowlSteps: (EducationDetail & { number: string; label: string })[] = [
   { number: '4', label: 'Water on the side', title: 'Water on the side', kicker: 'BETTER BOWL: STEP 4', color: '#287d78', summary: 'Water supports normal body function and replaces sugary drinks without adding calories.', benefits: ['Water helps prevent dehydration.', 'Choosing water instead of soda reduces added sugar and drink calories.', 'Plain sparkling water also works when you want bubbles.'], examples: 'Still water, sparkling water, or water with lemon, lime, cucumber, or berries.', action: 'Pour the water before you begin eating and keep soda out of the meal.' },
 ];
 
-const quickPrompts = ['Plan my next meal', 'Build my grocery list', 'I don’t feel like walking', 'Give me a smoothie', 'Help me reset'];
+const quickPrompts = ['Plan my next meal', 'Build my grocery list', 'Help me get moving'];
 
 const groceryGroups = [
   {
@@ -164,6 +165,7 @@ function AppLogo() {
 
 export default function HomePage() {
   const [tab, setTab] = useState<Tab>('today');
+  const [planSection, setPlanSection] = useState<PlanSection>('food');
   const [completed, setCompleted] = useState<string[]>([]);
   const [meal, setMeal] = useState('');
   const [mealResult, setMealResult] = useState<MealResult | null>(null);
@@ -253,19 +255,6 @@ export default function HomePage() {
     setChatLoading(false);
   }
 
-  function exportData() {
-    const data = localStorage.getItem('alex-health-plan') ?? '{}';
-    const url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = url; link.download = 'alex-health-plan-data.json'; link.click(); URL.revokeObjectURL(url);
-  }
-
-  function resetData() {
-    if (!window.confirm('Erase all saved check-ins and start fresh?')) return;
-    localStorage.removeItem('alex-health-plan');
-    setCompleted([]); setMessages([{ role: 'coach', text: 'Fresh start, Alex. What is your next good choice?' }]); setMealResult(null); setMeal(''); setCheckedGroceries([]);
-  }
-
   return (
     <main className="app-shell">
       <section className="app-frame">
@@ -312,8 +301,7 @@ export default function HomePage() {
                 </div>
               </section>
 
-              <button className="learn-strip" onClick={() => setTab('learn')}><span className="gbombs-mini">G·B·O·M·B·S</span><span><strong>New here? Start simple.</strong><small>Meet six everyday foods that support your plan.</small></span><ChevronRight size={19} /></button>
-              <button className="shop-strip" onClick={() => setTab('shop')}><span><ShoppingBasket size={20} /></span><span><strong>Shop with a plan</strong><small>A one-week grocery list is ready for you.</small></span><ChevronRight size={19} /></button>
+              <button className="plan-strip" onClick={() => { setPlanSection('food'); setTab('plan'); }}><span><Sprout size={19} /></span><span><strong>Open your food plan</strong><small>Food basics, easy meals, and your grocery list.</small></span><ChevronRight size={19} /></button>
               <p className="safety-note">Wellness guidance only, not medical diagnosis or treatment. Stop exercise and seek care for chest pain, fainting, or severe shortness of breath.</p>
             </>
           )}
@@ -330,46 +318,48 @@ export default function HomePage() {
             </section>
           )}
 
-          {tab === 'learn' && (
-            <section className="learn-screen">
-              <div className="page-heading compact"><span className="heading-icon"><Sprout size={23} /></span><div><p className="eyebrow">FOOD, MADE SIMPLE</p><h1>Meet GBOMBS</h1></div></div>
-              <div className="explain-card"><strong>It’s just a memory trick.</strong><p>GBOMBS stands for six groups of plant foods. You do not need all six at every meal. Start by adding one.</p><div className="simple-rule"><span>Today’s rule</span><b>Add one colorful plant to your next meal.</b></div></div>
-              <div className="gbombs-grid">{gbombs.map((item) => <button key={`${item.letter}-${item.name}`} onClick={() => setEducation({ title: item.name, kicker: item.kicker, summary: item.summary, benefits: item.benefits, examples: item.examplesLong, action: item.action, color: item.color })} aria-label={`Learn about ${item.name}`}><span style={{ backgroundColor: item.color }}>{item.letter}</span><span><strong>{item.name}</strong><small>{item.example}</small></span><ChevronRight size={17} /></button>)}</div>
-              <section className="lesson-card"><p className="eyebrow">AN EASY FIRST MEAL</p><h2>Build a better bowl</h2><div className="bowl-steps">{bowlSteps.map((step) => <button key={step.number} onClick={() => setEducation(step)} aria-label={`Learn about ${step.label}`}><b>{step.number}</b><span>{step.label}</span><ChevronRight size={15} /></button>)}</div><button onClick={() => { setMeal('Quinoa, black beans, spinach, onions, mushrooms and water'); setTab('today'); }}>Check this example <ArrowRight size={16} /></button></section>
-              <section className="smoothie-card"><p className="eyebrow">ENERGY SMOOTHIE</p><h2>Chocolate banana seed blend</h2><p>1 small banana · 1 tbsp peanut butter · 1 tbsp chia or ground flax · 1 tsp unsweetened cocoa · milk or unsweetened plant milk · ice</p><small>Treat it as a measured meal or snack, not an unlimited drink. Check allergies and medication interactions before using supplements such as turmeric or maca.</small></section>
-              <section className="sebi-note"><p className="eyebrow">PLANT-FORWARD IDEAS</p><h2>What we keep from “Dr. Sebi-style” eating</h2><p>We use the helpful overlap: more vegetables, beans, fruits, nuts, seeds, quinoa, herbs, and fewer ultra-processed foods. We do not use “alkaline cure,” detox, or disease-treatment claims because those claims are not established medical evidence.</p></section>
-            </section>
-          )}
-
-          {tab === 'shop' && (
-            <section className="shop-screen">
-              <div className="page-heading compact"><span className="heading-icon"><ShoppingBasket size={23} /></span><div><p className="eyebrow">ONE WEEK · ONE PERSON</p><h1>Grocery list</h1></div></div>
-              <section className="shop-intro"><div><span>{checkedGroceries.length}</span><small>items in cart</small></div><p>Shop the edges first: produce, plain proteins, and frozen whole foods. Skip soda and most packaged snack aisles.</p></section>
-              <div className="rice-free-banner"><strong>Six-month rice-free preference</strong><p>This plan suggests quinoa, cauliflower, lentils, beans, or extra vegetables instead. Rice is excluded as your chosen rule. This does not mean all rice is inherently unhealthy.</p></div>
-              <div className="grocery-groups">
-                {groceryGroups.map((group) => (
-                  <section key={group.name} className={`grocery-group ${group.color}`}>
-                    <header><div><h2>{group.name}</h2><p>{group.note}</p></div><span>{group.items.filter(([item]) => checkedGroceries.includes(item)).length}/{group.items.length}</span></header>
-                    <div>{group.items.map(([item, note]) => {
-                      const checked = checkedGroceries.includes(item);
-                      return <button key={item} className={checked ? 'checked' : ''} onClick={() => toggleGrocery(item)}><span className="grocery-check">{checked && <Check size={14} strokeWidth={3} />}</span><span><strong>{item}</strong><small>{note}</small></span></button>;
-                    })}</div>
-                  </section>
-                ))}
+          {tab === 'plan' && (
+            <section className="plan-screen">
+              <div className="simple-heading"><h1>Your plan</h1><p>Learn what to eat, then shop for it.</p></div>
+              <div className="plan-switch" role="tablist" aria-label="Plan sections">
+                <button role="tab" aria-selected={planSection === 'food'} className={planSection === 'food' ? 'active' : ''} onClick={() => setPlanSection('food')}>Food guide</button>
+                <button role="tab" aria-selected={planSection === 'groceries'} className={planSection === 'groceries' ? 'active' : ''} onClick={() => setPlanSection('groceries')}>Groceries</button>
               </div>
-              <section className="meal-ideas"><div className="section-heading"><div><p className="eyebrow">USE WHAT YOU BOUGHT</p><h2>Six easy meal choices</h2></div></div>{mealIdeas.map(([name, ingredients]) => <button key={name} onClick={() => { setMeal(ingredients); setTab('today'); }}><span><strong>{name}</strong><small>{ingredients}</small></span><ChevronRight size={17} /></button>)}</section>
-              <section className="meat-note"><strong>What “organic meat” means here</strong><p>Look for the USDA Organic seal, then still choose lean, minimally processed cuts and sensible portions. Organic describes how the food was produced; it does not automatically make every cut healthier. Always cook meat safely.</p></section>
-              <Button variant="outline" className="clear-list" onClick={() => setCheckedGroceries([])}>Clear checked items</Button>
+
+              {planSection === 'food' ? <>
+                <section className="plain-card food-intro"><h2>Meet GBOMBS</h2><p>GBOMBS means six groups of plant foods. You do not need all six at once. Add one to your next meal.</p></section>
+                <div className="gbombs-grid">{gbombs.map((item) => <button key={`${item.letter}-${item.name}`} onClick={() => setEducation({ title: item.name, kicker: item.kicker, summary: item.summary, benefits: item.benefits, examples: item.examplesLong, action: item.action, color: item.color })} aria-label={`Learn about ${item.name}`}><span style={{ backgroundColor: item.color }}>{item.letter}</span><span><strong>{item.name}</strong><small>{item.example}</small></span><ChevronRight size={17} /></button>)}</div>
+                <section className="plain-card lesson-card"><h2>Build a better bowl</h2><div className="bowl-steps">{bowlSteps.map((step) => <button key={step.number} onClick={() => setEducation(step)} aria-label={`Learn about ${step.label}`}><b>{step.number}</b><span>{step.label}</span><ChevronRight size={15} /></button>)}</div><button className="text-action" onClick={() => { setMeal('Quinoa, black beans, spinach, onions, mushrooms and water'); setTab('today'); }}>Try this meal <ChevronRight size={16} /></button></section>
+                <section className="plain-card smoothie-card"><h2>Chocolate banana smoothie</h2><p>Use one small banana, one tablespoon of peanut butter, one tablespoon of chia or ground flax, one teaspoon of cocoa, unsweetened milk, and ice.</p><small>Keep the portion measured. Check allergies and medicine interactions before adding supplements.</small></section>
+                <section className="plain-note"><h2>Plant-first approach</h2><p>Choose more vegetables, beans, fruit, nuts, seeds, quinoa, and herbs. We do not use detox or disease-cure claims.</p></section>
+              </> : <>
+                <section className="grocery-summary"><div><strong>{checkedGroceries.length}</strong><span>checked</span></div><p>Start with produce, simple proteins, and frozen whole foods. Skip soda and packaged snacks.</p></section>
+                <div className="plain-note rice-note"><h2>Your rice-free choice</h2><p>Choose quinoa, cauliflower, lentils, beans, or extra vegetables. This is your plan choice. It does not mean rice is harmful.</p></div>
+                <div className="grocery-groups">
+                  {groceryGroups.map((group) => (
+                    <section key={group.name} className="grocery-group">
+                      <header><div><h2>{group.name}</h2><p>{group.note}</p></div><span>{group.items.filter(([item]) => checkedGroceries.includes(item)).length}/{group.items.length}</span></header>
+                      <div>{group.items.map(([item, note]) => {
+                        const checked = checkedGroceries.includes(item);
+                        return <button key={item} className={checked ? 'checked' : ''} onClick={() => toggleGrocery(item)}><span className="grocery-check">{checked && <Check size={14} strokeWidth={3} />}</span><span><strong>{item}</strong><small>{note}</small></span></button>;
+                      })}</div>
+                    </section>
+                  ))}
+                </div>
+                <section className="plain-card meal-ideas"><h2>Easy meals</h2>{mealIdeas.map(([name, ingredients]) => <button key={name} onClick={() => { setMeal(ingredients); setTab('today'); }}><span><strong>{name}</strong><small>{ingredients}</small></span><ChevronRight size={17} /></button>)}</section>
+                <section className="plain-note meat-note"><h2>Choosing meat</h2><p>Choose lean, simple cuts. The USDA Organic seal tells you how it was produced. It does not make every cut healthier. Cook meat safely.</p></section>
+                <Button variant="outline" className="clear-list" onClick={() => setCheckedGroceries([])} disabled={!checkedGroceries.length}>Clear checked items</Button>
+              </>}
             </section>
           )}
 
           {tab === 'progress' && (
             <section className="progress-screen">
-              <div className="page-heading compact"><span className="heading-icon"><TrendingUp size={23} /></span><div><p className="eyebrow">PROGRESS, NOT PERFECTION</p><h1>Your week</h1></div></div>
-              <section className="week-card"><div><span className="big-number">{progress}%</span><small>of today’s promises kept</small></div><div className="week-bars" aria-label="Seven day progress"><i style={{height:'35%'}}/><i style={{height:'52%'}}/><i style={{height:'46%'}}/><i style={{height:'70%'}}/><i style={{height:'58%'}}/><i style={{height:'82%'}}/><i className="current" style={{height:`${Math.max(progress,8)}%`}}/></div><div className="day-labels"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>T</span></div></section>
-              <div className="stat-grid"><article><span className="stat-icon lime"><Footprints /></span><strong>65</strong><small>walking minutes</small></article><article><span className="stat-icon gold"><Sparkles /></span><strong>3</strong><small>day streak</small></article></div>
-              <section className="reflection-card"><p className="eyebrow">YOUR WEEKLY TRUTH</p><h2>You’re showing up.</h2><p>You completed more movement than last week. Your next focus is checking meals before you eat, not after.</p></section>
-              <section className="data-controls"><h2>Your data stays on this device</h2><p>No account is required. You can save a copy or erase everything at any time.</p><div><Button variant="outline" onClick={exportData}>Export my data</Button><Button variant="destructive" onClick={resetData}><RotateCcw /> Reset</Button></div></section>
+              <div className="simple-heading"><h1>Progress</h1><p>Only today’s real check-ins are shown.</p></div>
+              <section className="progress-summary"><div><strong>{progress}%</strong><span>Today</span></div><div><h2>{completed.length} of {habitList.length} done</h2><p>Each checked habit counts as one win.</p><div className="progress-track"><span style={{ width: `${progress}%` }} /></div></div></section>
+              <section className="progress-list">{habitList.map((habit) => <div key={habit.id}><span className={completed.includes(habit.id) ? 'done' : ''}>{completed.includes(habit.id) && <Check size={14} />}</span><p>{habit.id === 'walk' ? `Walk ${walkingStart} minutes` : habit.label}</p><small>{completed.includes(habit.id) ? 'Done' : 'Not done yet'}</small></div>)}</section>
+              <section className="history-note"><h2>Your history will appear here</h2><p>Past days will show after your plan is connected to the database.</p></section>
+              <Button variant="outline" className="reset-today" onClick={() => setCompleted([])} disabled={!completed.length}>Reset today</Button>
             </section>
           )}
         </div>
@@ -377,8 +367,7 @@ export default function HomePage() {
         <nav className="bottom-nav" aria-label="Main navigation">
           <button className={tab === 'today' ? 'active' : ''} onClick={() => setTab('today')}><Home /><span>Today</span></button>
           <button className={tab === 'coach' ? 'active' : ''} onClick={() => setTab('coach')}><MessageCircle /><span>Coach</span></button>
-          <button className={tab === 'learn' ? 'active' : ''} onClick={() => setTab('learn')}><BookOpen /><span>Learn</span></button>
-          <button className={tab === 'shop' ? 'active' : ''} onClick={() => setTab('shop')}><ShoppingBasket /><span>Shop</span></button>
+          <button className={tab === 'plan' ? 'active' : ''} onClick={() => setTab('plan')}><Sprout /><span>Plan</span></button>
           <button className={tab === 'progress' ? 'active' : ''} onClick={() => setTab('progress')}><TrendingUp /><span>Progress</span></button>
         </nav>
       </section>
