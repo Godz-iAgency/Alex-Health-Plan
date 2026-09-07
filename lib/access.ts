@@ -7,14 +7,13 @@ async function digest(value: string) {
 }
 
 function secretMaterial() {
-  const token = process.env.AIRTABLE_PAT;
-  const baseId = process.env.AIRTABLE_BASE_ID;
-  if (!token || !baseId) throw new Error('Private access is not configured');
-  return `${token}:${baseId}:alex-health-plan`;
+  const secret = process.env.GEMINI_API_KEY || process.env.AIRTABLE_PAT;
+  if (!secret) throw new Error('Private access is not configured');
+  return `${secret}:alex-health-plan`;
 }
 
 export function privateAccessConfigured() {
-  return Boolean(process.env.AIRTABLE_PAT && process.env.AIRTABLE_BASE_ID);
+  return Boolean(process.env.ALEX_ACCESS_CODE || process.env.GEMINI_API_KEY || process.env.AIRTABLE_PAT);
 }
 
 export async function expectedAccessCode() {
