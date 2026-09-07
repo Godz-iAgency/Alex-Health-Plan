@@ -12,6 +12,7 @@ declare module 'lucide-react' {
   export const HeartHandshake: Icon;
   export const Home: Icon;
   export const Leaf: Icon;
+  export const LogOut: Icon;
   export const MessageCircle: Icon;
   export const MoonStar: Icon;
   export const RotateCcw: Icon;

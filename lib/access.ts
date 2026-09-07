@@ -13,6 +13,10 @@ function secretMaterial() {
   return `${token}:${baseId}:alex-health-plan`;
 }
 
+export function privateAccessConfigured() {
+  return Boolean(process.env.AIRTABLE_PAT && process.env.AIRTABLE_BASE_ID);
+}
+
 export async function expectedAccessCode() {
   const configured = process.env.ALEX_ACCESS_CODE?.trim();
   if (configured) return configured;
@@ -39,7 +43,7 @@ function sameValue(first: string, second: string) {
 }
 
 export async function isAuthorized(request: Request) {
-  if (!process.env.AIRTABLE_PAT || !process.env.AIRTABLE_BASE_ID) return true;
+  if (!privateAccessConfigured()) return true;
   try {
     return sameValue(cookieValue(request), await expectedSession());
   } catch {
@@ -51,4 +55,9 @@ export async function sessionCookie() {
   const value = await expectedSession();
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   return `${COOKIE_NAME}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000${secure}`;
+}
+
+export function clearSessionCookie() {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+  return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure}`;
 }

@@ -3,7 +3,7 @@
 import {
   ArrowRight, Bot, Check, ChevronRight, CircleUserRound, Droplets,
   Footprints, HeartHandshake, Home, Leaf, MessageCircle, MoonStar,
-  Send, Sprout, TrendingUp, Utensils, X,
+  LogOut, Send, Sprout, TrendingUp, Utensils, X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { SyntheticEvent, useEffect, useMemo, useState } from 'react';
@@ -198,6 +198,7 @@ export default function HomePage() {
   const [accessCode, setAccessCode] = useState('');
   const [accessError, setAccessError] = useState('');
   const [accessLoading, setAccessLoading] = useState(false);
+  const [privateAccess, setPrivateAccess] = useState(false);
   const dateKey = useMemo(() => chicagoDateKey(), []);
   const weekOf = useMemo(() => weekStartKey(dateKey), [dateKey]);
 
@@ -224,7 +225,8 @@ export default function HomePage() {
     void (async () => {
       try {
         const response = await fetch('/api/access', { cache: 'no-store' });
-        const data = await response.json() as { authorized?: boolean };
+        const data = await response.json() as { authorized?: boolean; privateAccess?: boolean };
+        setPrivateAccess(data.privateAccess === true);
         setAccessStatus(data.authorized ? 'open' : 'locked');
       } catch {
         setAccessStatus('locked');
@@ -336,6 +338,22 @@ export default function HomePage() {
       setAccessError(error instanceof Error ? error.message : 'That code is not correct.');
     }
     setAccessLoading(false);
+  }
+
+  async function signOut() {
+    try {
+      await fetch('/api/access', { method: 'DELETE' });
+    } finally {
+      localStorage.removeItem('alex-health-plan');
+      setCompleted([]);
+      setCheckedGroceries([]);
+      setHistory([]);
+      setMessages([{ role: 'coach', text: 'Hey Alex. I’m here to make the next choice clear.' }]);
+      setMeal('');
+      setMealResult(null);
+      setShowProfile(false);
+      setAccessStatus('locked');
+    }
   }
 
   const toggleHabit = (id: string) => {
@@ -451,7 +469,7 @@ export default function HomePage() {
               <form className="meal-card" onSubmit={checkMeal}>
                 <div className="card-title-row"><span className="meal-icon"><Utensils size={21} /></span><div><p className="eyebrow">BEFORE YOU EAT</p><h2>Check my meal</h2></div></div>
                 <p>Type what you’re about to eat. Your coach will give you a clear, honest recommendation.</p>
-                <div className="meal-input"><input value={meal} onChange={(e) => setMeal(e.target.value)} placeholder="Chicken sandwich, fries and Coke…" aria-label="Describe your meal" maxLength={500} /><button disabled={!meal.trim() || mealLoading} aria-label="Check this meal">{mealLoading ? <span className="loader" /> : <ArrowRight size={20} />}</button></div>
+                <div className="meal-input"><input value={meal} onChange={(e) => setMeal(e.target.value)} placeholder="Type your meal here..." aria-label="Describe your meal" maxLength={500} /><button disabled={!meal.trim() || mealLoading} aria-label="Check this meal">{mealLoading ? <span className="loader" /> : <ArrowRight size={20} />}</button></div>
               </form>
 
               {mealResult && (
@@ -574,7 +592,7 @@ export default function HomePage() {
       </Dialog>
 
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
-        <DialogContent className="profile-dialog"><DialogHeader><DialogTitle>Your plan</DialogTitle><DialogDescription>Keep the starting point comfortable and realistic.</DialogDescription></DialogHeader><label>Starting walk<select value={walkingStart} onChange={(e) => setWalkingStart(e.target.value)}><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></label><div className="profile-info"><strong>About this coach</strong><p>It gives educational wellness support, not medical diagnosis or treatment. It will never recommend raw meat, crash diets, or ignoring symptoms.</p></div><Button className="dialog-primary" onClick={() => { saveWalkGoal(); setShowProfile(false); }}>Save plan</Button></DialogContent>
+        <DialogContent className="profile-dialog"><DialogHeader><DialogTitle>Your plan</DialogTitle><DialogDescription>Keep the starting point comfortable and realistic.</DialogDescription></DialogHeader><label>Starting walk<select value={walkingStart} onChange={(e) => setWalkingStart(e.target.value)}><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></label><div className="profile-info"><strong>About this coach</strong><p>It gives educational wellness support, not medical diagnosis or treatment. It will never recommend raw meat, crash diets, or ignoring symptoms.</p></div><Button className="dialog-primary" onClick={() => { saveWalkGoal(); setShowProfile(false); }}>Save plan</Button>{privateAccess && <Button variant="outline" className="sign-out-button" onClick={() => void signOut()}><LogOut size={16} /> Sign out</Button>}</DialogContent>
       </Dialog>
     </main>
   );

@@ -1,4 +1,4 @@
-import { expectedAccessCode, isAuthorized, sessionCookie } from '@/lib/access';
+import { clearSessionCookie, expectedAccessCode, isAuthorized, privateAccessConfigured, sessionCookie } from '@/lib/access';
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
@@ -14,7 +14,7 @@ function blocked(ip: string) {
 }
 
 export async function GET(request: Request) {
-  return Response.json({ authorized: await isAuthorized(request) });
+  return Response.json({ authorized: await isAuthorized(request), privateAccess: privateAccessConfigured() });
 }
 
 export async function POST(request: Request) {
@@ -32,4 +32,8 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: 'Private access is not configured.' }, { status: 503 });
   }
+}
+
+export async function DELETE() {
+  return Response.json({ authorized: false }, { headers: { 'Set-Cookie': clearSessionCookie() } });
 }
