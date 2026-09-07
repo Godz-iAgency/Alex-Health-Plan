@@ -1,3 +1,7 @@
+import { loadCoachContext, saveCoachExchange } from '@/lib/alex-data';
+import { isAuthorized } from '@/lib/access';
+import { chicagoDateKey } from '@/lib/dates';
+
 const requests = new Map<string, { count: number; resetAt: number }>();
 
 const SYSTEM_PROMPT = `You are Coach Alex, the beginner-friendly wellness accountability coach inside Alex Health Plan. You know the entire app and should guide Alex as if this app is his daily health-plan companion.
@@ -98,6 +102,7 @@ function sanitizeCopy(text: string, maximum = 50) {
 }
 
 export async function POST(request: Request) {
+  if (!await isAuthorized(request)) return Response.json({ error: 'Private access required.' }, { status: 401 });
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? 'local';
   if (limited(ip)) return Response.json({ error: 'Please wait a moment before asking again.' }, { status: 429 });
 
@@ -109,9 +114,17 @@ export async function POST(request: Request) {
     const message = String(body.message ?? '').trim().slice(0, 800);
     if (!message) return Response.json({ error: 'Please enter a message.' }, { status: 400 });
     const mode = body.mode === 'meal' ? 'meal' : 'chat';
+    let savedContext = '';
+    if (mode === 'chat') {
+      try {
+        savedContext = await loadCoachContext(chicagoDateKey());
+      } catch (error) {
+        console.error('Coach memory load failed', error instanceof Error ? error.message : 'Unknown error');
+      }
+    }
     const task = mode === 'meal'
       ? `Assess this planned meal: "${message}". Return ONLY valid JSON with this exact shape: {"rating":"green|yellow|red","label":"Good choice|Improve it|Not recommended","headline":"short direct headline","reason":"one short sentence at a third-grade to fifth-grade reading level","better":"one short and specific next step","gbombs":["only GBOMBS groups actually present"]}. Green means the meal supports the plan. Yellow means it needs one change. Red means it is not recommended. Be honest and kind. Do not use Markdown or list formatting in any value.`
-      : `${(body.history ?? []).slice(-6).map((item) => `${item.role}: ${sanitizeCopy(String(item.text).slice(0, 500))}`).join('\n')}\nAlex: ${message}\nAnswer in natural language at a third-grade to fifth-grade reading level. Use 20 to 35 words when possible. Never use more than 50 words. Only use close to 50 words when the question needs more detail. Do not use Markdown, lists, headings, asterisks, or dash punctuation. Give one clear next step.`;
+      : `${savedContext ? `Saved app context: ${savedContext}\n` : ''}${(body.history ?? []).slice(-6).map((item) => `${item.role}: ${sanitizeCopy(String(item.text).slice(0, 500))}`).join('\n')}\nAlex: ${message}\nAnswer in natural language at a third-grade to fifth-grade reading level. Use 20 to 35 words when possible. Never use more than 50 words. Only use close to 50 words when the question needs more detail. Do not use Markdown, lists, headings, asterisks, or dash punctuation. Give one clear next step.`;
 
     const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -123,7 +136,15 @@ export async function POST(request: Request) {
     const data = await response.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
     const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? '').join('')?.trim();
     if (!text) throw new Error('Empty Gemini response');
-    return mode === 'meal' ? Response.json({ result: extractJson(text) }) : Response.json({ text: sanitizeCopy(text) });
+    if (mode === 'meal') return Response.json({ result: extractJson(text) });
+
+    const reply = sanitizeCopy(text);
+    try {
+      await saveCoachExchange(message, reply);
+    } catch (error) {
+      console.error('Coach memory save failed', error instanceof Error ? error.message : 'Unknown error');
+    }
+    return Response.json({ text: reply });
   } catch (error) {
     console.error('Coach request failed', error instanceof Error ? error.message : 'Unknown error');
     return Response.json({ error: 'The coach is taking a short break. Try again soon.' }, { status: 502 });

@@ -9,10 +9,14 @@ import Image from 'next/image';
 import { SyntheticEvent, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { DailyHistoryItem, PlanContentItem } from '@/lib/alex-data';
+import { chicagoDateKey, weekStartKey } from '@/lib/dates';
 
 type Tab = 'today' | 'coach' | 'plan' | 'progress';
 type PlanSection = 'food' | 'groceries';
 type Rating = 'green' | 'yellow' | 'red';
+type SyncStatus = 'loading' | 'saving' | 'saved' | 'offline';
+type AccessStatus = 'checking' | 'locked' | 'open';
 type MealResult = { rating: Rating; label: string; headline: string; reason: string; better: string; gbombs: string[] };
 type ChatMessage = { role: 'user' | 'coach'; text: string };
 type EducationDetail = {
@@ -105,6 +109,11 @@ const mealIdeas = [
   ['Salmon and greens', 'Wild salmon, cabbage or kale, mushrooms, lemon'],
 ];
 
+const gbombContentKeys: Record<string, string> = {
+  Greens: 'gbombs-greens', Beans: 'gbombs-beans', Onions: 'gbombs-onions',
+  Mushrooms: 'gbombs-mushrooms', Berries: 'gbombs-berries', 'Seeds & nuts': 'gbombs-seeds-nuts',
+};
+
 function localMealCheck(text: string): MealResult {
   const value = text.toLowerCase();
   const goodTerms = ['green', 'salad', 'spinach', 'kale', 'broccoli', 'bean', 'lentil', 'chickpea', 'onion', 'mushroom', 'berry', 'berries', 'seed', 'nut', 'fruit', 'vegetable', 'water', 'oat', 'chicken', 'fish', 'tofu'];
@@ -171,6 +180,7 @@ export default function HomePage() {
   const [mealResult, setMealResult] = useState<MealResult | null>(null);
   const [mealLoading, setMealLoading] = useState(false);
   const [mealChoice, setMealChoice] = useState<'recommended' | 'original' | null>(null);
+  const [mealRecordId, setMealRecordId] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'coach', text: 'Hey Alex. I’m here to make the next choice clear. Tell me what you’re eating, how you’re feeling, or where you feel stuck.' },
   ]);
@@ -181,6 +191,15 @@ export default function HomePage() {
   const [walkingStart, setWalkingStart] = useState('15');
   const [checkedGroceries, setCheckedGroceries] = useState<string[]>([]);
   const [education, setEducation] = useState<EducationDetail | null>(null);
+  const [history, setHistory] = useState<DailyHistoryItem[]>([]);
+  const [planContent, setPlanContent] = useState<PlanContentItem[]>([]);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('loading');
+  const [accessStatus, setAccessStatus] = useState<AccessStatus>('checking');
+  const [accessCode, setAccessCode] = useState('');
+  const [accessError, setAccessError] = useState('');
+  const [accessLoading, setAccessLoading] = useState(false);
+  const dateKey = useMemo(() => chicagoDateKey(), []);
+  const weekOf = useMemo(() => weekStartKey(dateKey), [dateKey]);
 
   useEffect(() => {
     const saved = localStorage.getItem('alex-health-plan');
@@ -201,7 +220,46 @@ export default function HomePage() {
       }
     });
     navigator.serviceWorker?.register('/sw.js').catch(() => undefined);
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/access', { cache: 'no-store' });
+        const data = await response.json() as { authorized?: boolean };
+        setAccessStatus(data.authorized ? 'open' : 'locked');
+      } catch {
+        setAccessStatus('locked');
+      }
+    })();
   }, []);
+
+  useEffect(() => {
+    if (accessStatus !== 'open') return;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/state?date=${encodeURIComponent(dateKey)}&weekOf=${encodeURIComponent(weekOf)}`, { cache: 'no-store' });
+        if (!response.ok) throw new Error('Sync unavailable');
+        const data = await response.json() as {
+          connected?: boolean;
+          walkingStart?: string;
+          completed?: string[];
+          checkedGroceries?: string[];
+          messages?: ChatMessage[];
+          history?: DailyHistoryItem[];
+          planContent?: PlanContentItem[];
+        };
+        if (!data.connected) throw new Error('Sync unavailable');
+        setWalkingStart(data.walkingStart || '15');
+        setCompleted(Array.isArray(data.completed) ? data.completed : []);
+        setCheckedGroceries(Array.isArray(data.checkedGroceries) ? data.checkedGroceries : []);
+        if (Array.isArray(data.messages) && data.messages.length) setMessages(data.messages);
+        setHistory(Array.isArray(data.history) ? data.history : []);
+        setPlanContent(Array.isArray(data.planContent) ? data.planContent : []);
+        setSyncStatus('saved');
+      } catch {
+        setSyncStatus('offline');
+      }
+    })();
+  }, [accessStatus, dateKey, weekOf]);
 
   useEffect(() => {
     localStorage.setItem('alex-health-plan', JSON.stringify({ completed, messages: messages.slice(-12), walkingStart, checkedGroceries }));
@@ -214,23 +272,118 @@ export default function HomePage() {
   }, []);
   const today = useMemo(() => new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).format(new Date()), []);
 
-  const toggleHabit = (id: string) => setCompleted((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  const toggleGrocery = (item: string) => setCheckedGroceries((current) => current.includes(item) ? current.filter((entry) => entry !== item) : [...current, item]);
+  const syncedGbombs = useMemo(() => gbombs.map((item) => {
+    const saved = planContent.find((entry) => entry.key === gbombContentKeys[item.name]);
+    return saved ? {
+      ...item,
+      summary: saved.summary || item.summary,
+      benefits: saved.benefits.length ? saved.benefits : item.benefits,
+      examplesLong: saved.examples || item.examplesLong,
+      action: saved.nextMove || item.action,
+    } : item;
+  }), [planContent]);
+
+  const syncedBowlSteps = useMemo(() => bowlSteps.map((step) => {
+    const saved = planContent.find((entry) => entry.key === `bowl-${step.number}`);
+    return saved ? {
+      ...step,
+      title: saved.title || step.title,
+      summary: saved.summary || step.summary,
+      benefits: saved.benefits.length ? saved.benefits : step.benefits,
+      examples: saved.examples || step.examples,
+      action: saved.nextMove || step.action,
+    } : step;
+  }), [planContent]);
+
+  const syncedMealIdeas = useMemo(() => {
+    const saved = planContent.filter((item) => item.type === 'Meal Idea').sort((a, b) => a.sortOrder - b.sortOrder);
+    return saved.length ? saved.map((item) => [item.title, item.examples]) : mealIdeas;
+  }, [planContent]);
+
+  async function saveState(payload: Record<string, unknown>) {
+    setSyncStatus('saving');
+    try {
+      const response = await fetch('/api/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error('Save unavailable');
+      setSyncStatus('saved');
+      return await response.json() as { saved?: boolean; mealId?: string };
+    } catch {
+      setSyncStatus('offline');
+      return null;
+    }
+  }
+
+  async function unlockApp(event: SyntheticEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessCode.trim() || accessLoading) return;
+    setAccessLoading(true);
+    setAccessError('');
+    try {
+      const response = await fetch('/api/access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: accessCode.trim() }),
+      });
+      const data = await response.json() as { authorized?: boolean; error?: string };
+      if (!response.ok || !data.authorized) throw new Error(data.error || 'That code is not correct.');
+      setAccessCode('');
+      setAccessStatus('open');
+    } catch (error) {
+      setAccessError(error instanceof Error ? error.message : 'That code is not correct.');
+    }
+    setAccessLoading(false);
+  }
+
+  const toggleHabit = (id: string) => {
+    const next = completed.includes(id) ? completed.filter((item) => item !== id) : [...completed, id];
+    setCompleted(next);
+    setHistory((current) => [{ date: dateKey, completed: next, walkMinutes: next.includes('walk') ? Number(walkingStart) : 0 }, ...current.filter((item) => item.date !== dateKey)]);
+    void saveState({ action: 'daily', date: dateKey, completed: next, walkGoal: Number(walkingStart) });
+  };
+
+  const toggleGrocery = (item: string, category: string, quantity: string, sortOrder: number) => {
+    const isChecked = !checkedGroceries.includes(item);
+    setCheckedGroceries((current) => isChecked ? [...current, item] : current.filter((entry) => entry !== item));
+    void saveState({ action: 'grocery', weekOf, item, category, quantity, checked: isChecked, sortOrder });
+  };
+
+  const saveWalkGoal = () => {
+    void saveState({ action: 'profile', walkGoal: Number(walkingStart) });
+  };
+
+  const clearGroceryList = () => {
+    setCheckedGroceries([]);
+    void saveState({ action: 'clearGroceries', weekOf });
+  };
+
+  const chooseMeal = (choice: 'recommended' | 'original') => {
+    setMealChoice(choice);
+    if (mealRecordId) void saveState({ action: 'mealChoice', mealId: mealRecordId, choice });
+  };
 
   async function checkMeal(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!meal.trim()) return;
     setMealLoading(true);
     setMealChoice(null);
+    setMealRecordId('');
     const fallback = localMealCheck(meal);
-    setMealResult(fallback);
+    let finalResult = fallback;
+    setMealResult(finalResult);
     try {
       const response = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'meal', message: meal }) });
       if (response.ok) {
         const data = await response.json() as { result?: MealResult };
-        if (data.result?.rating) setMealResult(cleanMealResult(data.result));
+        if (data.result?.rating) finalResult = cleanMealResult(data.result);
       }
     } catch { /* offline fallback is already visible */ }
+    setMealResult(finalResult);
+    const saved = await saveState({ action: 'meal', meal: meal.trim(), result: finalResult });
+    if (saved?.mealId) setMealRecordId(saved.mealId);
     setMealLoading(false);
   }
 
@@ -255,6 +408,29 @@ export default function HomePage() {
     setChatLoading(false);
   }
 
+  if (accessStatus === 'checking') {
+    return <main className="access-shell"><section className="access-card access-loading"><AppLogo /><span className="loader" /><p>Opening your plan</p></section></main>;
+  }
+
+  if (accessStatus === 'locked') {
+    return (
+      <main className="access-shell">
+        <section className="access-card">
+          <AppLogo />
+          <p className="eyebrow">ALEX HEALTH PLAN</p>
+          <h1>Welcome, Alex.</h1>
+          <p>Your plan and progress are private. Enter your six-digit code to continue.</p>
+          <form onSubmit={unlockApp}>
+            <input value={accessCode} onChange={(event) => setAccessCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" aria-label="Private access code" placeholder="6-digit code" maxLength={6} />
+            <Button type="submit" className="dialog-primary" disabled={accessCode.length !== 6 || accessLoading}>{accessLoading ? 'Checking' : 'Open my plan'}</Button>
+          </form>
+          {accessError && <p className="access-error" role="alert">{accessError}</p>}
+          <small>No account or ChatGPT sign-in is needed.</small>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <section className="app-frame">
@@ -264,6 +440,7 @@ export default function HomePage() {
         </header>
 
         <div className="screen" key={tab}>
+          {syncStatus === 'offline' && <div className="sync-notice">Saved on this phone. Online sync will retry when you return.</div>}
           {tab === 'today' && (
             <>
               <section className="welcome-row">
@@ -285,8 +462,8 @@ export default function HomePage() {
                   <div className="gbomb-found"><Leaf size={15} /><span>{mealResult.gbombs.length ? `GBOMBS found: ${mealResult.gbombs.join(', ')}` : 'No GBOMBS foods found yet'}</span></div>
                   <p className="accountability-copy">Be honest. What are you choosing?</p>
                   <div className="choice-buttons">
-                    <button className={mealChoice === 'recommended' ? 'selected' : ''} onClick={() => setMealChoice('recommended')} type="button"><Check size={15} /> Recommended version</button>
-                    <button className={mealChoice === 'original' ? 'selected' : ''} onClick={() => setMealChoice('original')} type="button">Original meal</button>
+                    <button className={mealChoice === 'recommended' ? 'selected' : ''} onClick={() => chooseMeal('recommended')} type="button"><Check size={15} /> Recommended version</button>
+                    <button className={mealChoice === 'original' ? 'selected' : ''} onClick={() => chooseMeal('original')} type="button">Original meal</button>
                   </div>
                 </section>
               )}
@@ -328,38 +505,38 @@ export default function HomePage() {
 
               {planSection === 'food' ? <>
                 <section className="plain-card food-intro"><h2>Meet GBOMBS</h2><p>GBOMBS means six groups of plant foods. You do not need all six at once. Add one to your next meal.</p></section>
-                <div className="gbombs-grid">{gbombs.map((item) => <button key={`${item.letter}-${item.name}`} onClick={() => setEducation({ title: item.name, kicker: item.kicker, summary: item.summary, benefits: item.benefits, examples: item.examplesLong, action: item.action, color: item.color })} aria-label={`Learn about ${item.name}`}><span style={{ backgroundColor: item.color }}>{item.letter}</span><span><strong>{item.name}</strong><small>{item.example}</small></span><ChevronRight size={17} /></button>)}</div>
-                <section className="plain-card lesson-card"><h2>Build a better bowl</h2><div className="bowl-steps">{bowlSteps.map((step) => <button key={step.number} onClick={() => setEducation(step)} aria-label={`Learn about ${step.label}`}><b>{step.number}</b><span>{step.label}</span><ChevronRight size={15} /></button>)}</div><button className="text-action" onClick={() => { setMeal('Quinoa, black beans, spinach, onions, mushrooms and water'); setTab('today'); }}>Try this meal <ChevronRight size={16} /></button></section>
+                <div className="gbombs-grid">{syncedGbombs.map((item) => <button key={`${item.letter}-${item.name}`} onClick={() => setEducation({ title: item.name, kicker: item.kicker, summary: item.summary, benefits: item.benefits, examples: item.examplesLong, action: item.action, color: item.color })} aria-label={`Learn about ${item.name}`}><span style={{ backgroundColor: item.color }}>{item.letter}</span><span><strong>{item.name}</strong><small>{item.example}</small></span><ChevronRight size={17} /></button>)}</div>
+                <section className="plain-card lesson-card"><h2>Build a better bowl</h2><div className="bowl-steps">{syncedBowlSteps.map((step) => <button key={step.number} onClick={() => setEducation(step)} aria-label={`Learn about ${step.label}`}><b>{step.number}</b><span>{step.label}</span><ChevronRight size={15} /></button>)}</div><button className="text-action" onClick={() => { setMeal('Quinoa, black beans, spinach, onions, mushrooms and water'); setTab('today'); }}>Try this meal <ChevronRight size={16} /></button></section>
                 <section className="plain-card smoothie-card"><h2>Chocolate banana smoothie</h2><p>Use one small banana, one tablespoon of peanut butter, one tablespoon of chia or ground flax, one teaspoon of cocoa, unsweetened milk, and ice.</p><small>Keep the portion measured. Check allergies and medicine interactions before adding supplements.</small></section>
                 <section className="plain-note"><h2>Plant-first approach</h2><p>Choose more vegetables, beans, fruit, nuts, seeds, quinoa, and herbs. We do not use detox or disease-cure claims.</p></section>
               </> : <>
                 <section className="grocery-summary"><div><strong>{checkedGroceries.length}</strong><span>checked</span></div><p>Start with produce, simple proteins, and frozen whole foods. Skip soda and packaged snacks.</p></section>
                 <div className="plain-note rice-note"><h2>Your rice-free choice</h2><p>Choose quinoa, cauliflower, lentils, beans, or extra vegetables. This is your plan choice. It does not mean rice is harmful.</p></div>
                 <div className="grocery-groups">
-                  {groceryGroups.map((group) => (
+                  {groceryGroups.map((group, groupIndex) => (
                     <section key={group.name} className="grocery-group">
                       <header><div><h2>{group.name}</h2><p>{group.note}</p></div><span>{group.items.filter(([item]) => checkedGroceries.includes(item)).length}/{group.items.length}</span></header>
-                      <div>{group.items.map(([item, note]) => {
+                      <div>{group.items.map(([item, note], itemIndex) => {
                         const checked = checkedGroceries.includes(item);
-                        return <button key={item} className={checked ? 'checked' : ''} onClick={() => toggleGrocery(item)}><span className="grocery-check">{checked && <Check size={14} strokeWidth={3} />}</span><span><strong>{item}</strong><small>{note}</small></span></button>;
+                        return <button key={item} className={checked ? 'checked' : ''} onClick={() => toggleGrocery(item, group.name, note, groupIndex * 100 + itemIndex)}><span className="grocery-check">{checked && <Check size={14} strokeWidth={3} />}</span><span><strong>{item}</strong><small>{note}</small></span></button>;
                       })}</div>
                     </section>
                   ))}
                 </div>
-                <section className="plain-card meal-ideas"><h2>Easy meals</h2>{mealIdeas.map(([name, ingredients]) => <button key={name} onClick={() => { setMeal(ingredients); setTab('today'); }}><span><strong>{name}</strong><small>{ingredients}</small></span><ChevronRight size={17} /></button>)}</section>
+                <section className="plain-card meal-ideas"><h2>Easy meals</h2>{syncedMealIdeas.map(([name, ingredients]) => <button key={name} onClick={() => { setMeal(ingredients); setTab('today'); }}><span><strong>{name}</strong><small>{ingredients}</small></span><ChevronRight size={17} /></button>)}</section>
                 <section className="plain-note meat-note"><h2>Choosing meat</h2><p>Choose lean, simple cuts. The USDA Organic seal tells you how it was produced. It does not make every cut healthier. Cook meat safely.</p></section>
-                <Button variant="outline" className="clear-list" onClick={() => setCheckedGroceries([])} disabled={!checkedGroceries.length}>Clear checked items</Button>
+                <Button variant="outline" className="clear-list" onClick={clearGroceryList} disabled={!checkedGroceries.length}>Clear checked items</Button>
               </>}
             </section>
           )}
 
           {tab === 'progress' && (
             <section className="progress-screen">
-              <div className="simple-heading"><h1>Progress</h1><p>Only today’s real check-ins are shown.</p></div>
+              <div className="simple-heading"><h1>Progress</h1><p>Your daily wins are saved and shown here.</p></div>
               <section className="progress-summary"><div><strong>{progress}%</strong><span>Today</span></div><div><h2>{completed.length} of {habitList.length} done</h2><p>Each checked habit counts as one win.</p><div className="progress-track"><span style={{ width: `${progress}%` }} /></div></div></section>
               <section className="progress-list">{habitList.map((habit) => <div key={habit.id}><span className={completed.includes(habit.id) ? 'done' : ''}>{completed.includes(habit.id) && <Check size={14} />}</span><p>{habit.id === 'walk' ? `Walk ${walkingStart} minutes` : habit.label}</p><small>{completed.includes(habit.id) ? 'Done' : 'Not done yet'}</small></div>)}</section>
-              <section className="history-note"><h2>Your history will appear here</h2><p>Past days will show after your plan is connected to the database.</p></section>
-              <Button variant="outline" className="reset-today" onClick={() => setCompleted([])} disabled={!completed.length}>Reset today</Button>
+              <section className="history-card"><header><h2>Recent days</h2><span>{syncStatus === 'saving' ? 'Saving' : syncStatus === 'saved' ? 'Synced' : 'On this phone'}</span></header>{history.filter((item) => item.date !== dateKey).slice(0, 7).length ? history.filter((item) => item.date !== dateKey).slice(0, 7).map((item) => <div key={item.date}><time>{new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${item.date}T12:00:00Z`))}</time><span>{item.completed.length} of 4 wins</span><b>{item.completed.includes('walk') ? `${item.walkMinutes} min walk` : 'No walk logged'}</b></div>) : <p>Your first saved day starts today.</p>}</section>
+              <Button variant="outline" className="reset-today" onClick={() => { setCompleted([]); setHistory((current) => [{ date: dateKey, completed: [], walkMinutes: 0 }, ...current.filter((item) => item.date !== dateKey)]); void saveState({ action: 'daily', date: dateKey, completed: [], walkGoal: Number(walkingStart) }); }} disabled={!completed.length}>Reset today</Button>
             </section>
           )}
         </div>
@@ -377,7 +554,7 @@ export default function HomePage() {
           <div className="welcome-logo"><AppLogo /></div><DialogHeader><DialogTitle>Welcome, Alex.</DialogTitle><DialogDescription>This plan starts small on purpose. What feels like a comfortable first walk?</DialogDescription></DialogHeader>
           <div className="walk-options">{['10','15','20'].map((minutes) => <button key={minutes} className={walkingStart === minutes ? 'selected' : ''} onClick={() => setWalkingStart(minutes)}><strong>{minutes}</strong><span>minutes</span></button>)}</div>
           <p className="dialog-safety">If you have chest pain, dizziness, severe breathlessness, uncontrolled blood pressure, diabetes complications, or significant joint pain, ask a healthcare professional before changing activity.</p>
-          <Button className="dialog-primary" size="lg" onClick={() => setShowWelcome(false)}>Create my simple plan <ArrowRight /></Button>
+          <Button className="dialog-primary" size="lg" onClick={() => { saveWalkGoal(); setShowWelcome(false); }}>Create my simple plan <ArrowRight /></Button>
         </DialogContent>
       </Dialog>
 
@@ -397,7 +574,7 @@ export default function HomePage() {
       </Dialog>
 
       <Dialog open={showProfile} onOpenChange={setShowProfile}>
-        <DialogContent className="profile-dialog"><DialogHeader><DialogTitle>Your plan</DialogTitle><DialogDescription>Keep the starting point comfortable and realistic.</DialogDescription></DialogHeader><label>Starting walk<select value={walkingStart} onChange={(e) => setWalkingStart(e.target.value)}><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></label><div className="profile-info"><strong>About this coach</strong><p>It gives educational wellness support, not medical diagnosis or treatment. It will never recommend raw meat, crash diets, or ignoring symptoms.</p></div><Button className="dialog-primary" onClick={() => setShowProfile(false)}>Save plan</Button></DialogContent>
+        <DialogContent className="profile-dialog"><DialogHeader><DialogTitle>Your plan</DialogTitle><DialogDescription>Keep the starting point comfortable and realistic.</DialogDescription></DialogHeader><label>Starting walk<select value={walkingStart} onChange={(e) => setWalkingStart(e.target.value)}><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></label><div className="profile-info"><strong>About this coach</strong><p>It gives educational wellness support, not medical diagnosis or treatment. It will never recommend raw meat, crash diets, or ignoring symptoms.</p></div><Button className="dialog-primary" onClick={() => { saveWalkGoal(); setShowProfile(false); }}>Save plan</Button></DialogContent>
       </Dialog>
     </main>
   );
