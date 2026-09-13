@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.PUBLIC_SITE_URL || 'https://alex-health-plan.splitmic.chatgpt.site'),
+  metadataBase: new URL(process.env.PUBLIC_SITE_URL || 'https://alex-health-plan.vercel.app'),
   title: 'Alex Health Plan',
-  description: 'A simple, supportive daily wellness coach for Alex.',
+  description: 'A simple daily plan for food, movement, rest, and steady progress.',
   applicationName: 'Alex Health Plan',
   icons: { icon: '/alex-logo.png', apple: '/alex-logo.png' },
   appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'Alex Health' },

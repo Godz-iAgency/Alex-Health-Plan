@@ -105,6 +105,23 @@ export async function updateRecords(table: string, records: { id: string; fields
   return saved;
 }
 
+export async function upsertRecords(table: string, fieldsToMergeOn: string[], fields: AirtableFields[]) {
+  if (!fields.length) return [];
+  const saved: AirtableRecord[] = [];
+  for (let index = 0; index < fields.length; index += 10) {
+    const response = await airtableRequest<{ records: AirtableRecord[] }>(table, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        performUpsert: { fieldsToMergeOn },
+        records: fields.slice(index, index + 10).map((item) => ({ fields: item })),
+        typecast: true,
+      }),
+    });
+    saved.push(...response.records);
+  }
+  return saved;
+}
+
 export async function findRecord(table: string, field: string, value: string) {
   const records = await listRecords(table, { filterByFormula: formulaEquals(field, value), maxRecords: 1 });
   return records[0] ?? null;

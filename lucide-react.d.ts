@@ -1,12 +1,15 @@
 declare module 'lucide-react' {
   import type { ComponentType, SVGProps } from 'react';
   type Icon = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string; strokeWidth?: number | string }>;
+  export const Activity: Icon;
   export const ArrowRight: Icon;
   export const BookOpen: Icon;
   export const Bot: Icon;
+  export const Brain: Icon;
   export const Check: Icon;
   export const ChevronRight: Icon;
   export const CircleUserRound: Icon;
+  export const Clock3: Icon;
   export const Droplets: Icon;
   export const Footprints: Icon;
   export const HeartHandshake: Icon;
@@ -16,6 +19,8 @@ declare module 'lucide-react' {
   export const MessageCircle: Icon;
   export const MoonStar: Icon;
   export const RotateCcw: Icon;
+  export const RefreshCw: Icon;
+  export const Scale: Icon;
   export const Send: Icon;
   export const ShoppingBasket: Icon;
   export const Sparkles: Icon;
